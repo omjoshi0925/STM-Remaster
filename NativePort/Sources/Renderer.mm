@@ -10,6 +10,7 @@
 #include "Character.hpp"
 #include "Combat.hpp"
 #include "UIKitData.hpp"
+#include "GameFlow.hpp"
 #include <memory>
 #include <cmath>
 #include <cstring>
@@ -28,6 +29,8 @@ static const float kModelYawOffset = (float)M_PI_2;
 static const NSUInteger kMaxBones = 38;
 static const NSUInteger kBoneSlot = 2560;      // 40 bones * 64 B, 256-aligned
 static const NSUInteger kFramesInFlight = 3;   // bone buffers are rewritten per frame
+static const char *kLevelDirs[] = {"levelnew_01", "levelnew_02"};
+static const int kLevelCount = 2;
 
 struct GPUSkinVertex { float p[3]; float n[3]; float uv[2]; uint16_t bone[4]; float w[4]; };
 struct GPUStaticVertex { float p[3]; float n[3]; float uv[2]; uint8_t c[4]; };
@@ -221,6 +224,13 @@ fragment half4 frag(Out i                   [[stage_in]],
     id<MTLBuffer> _spriteVB;
     int _modStickBase, _modStickPuck, _modButton, _modBarFrame;
     BOOL _showAtlasSheet, _paused;
+
+    // Milestone 8: level flow
+    bdae::GameFlow _flow;
+    bdae::StringTable _strings;
+    std::string _assetRootStr;
+    id<MTLTexture> _paperTex;
+    UILabel *_flowLabel;
     id<MTLBuffer> _npcBones;
 
     std::unique_ptr<Model> _hero;
@@ -317,8 +327,14 @@ fragment half4 frag(Out i                   [[stage_in]],
     BOOL animReady = NO;
     if (_heroReady) animReady = _hero->loadAnimation(assetRoot + "/entities/meshes_bin/spiderman_anim.bdae", animErr);
 
-    _room = std::make_unique<LevelRoom>();
-    _levelReady = _room->loadFullLevel(assetRoot, "levelnew_01", levelErr);
+    _assetRootStr = assetRoot;
+    {
+        std::string se;
+        if (!_strings.load(assetRoot + "/xlsStrings/MAIN.map",
+                           assetRoot + "/xlsStrings/MAIN_EN.data", se))
+            NSLog(@"[TotalMayhem] strings: %s", se.c_str());
+    }
+    [self loadLevelIndex:0];
 
     if (_heroReady) {
         const Mesh &m = _hero->meshes.front();
@@ -348,31 +364,7 @@ fragment half4 frag(Out i                   [[stage_in]],
         }
     }
 
-    _levelVBs = [NSMutableArray new];
-    _levelIBs = [NSMutableArray new];
-    if (_levelReady) {
-        for (const TriMesh &lv : _room->visualBatches) {
-            std::vector<GPUStaticVertex> verts(lv.vertices.size());
-            for (size_t i = 0; i < lv.vertices.size(); ++i) {
-                const Vertex &s = lv.vertices[i];
-                GPUStaticVertex &d = verts[i];
-                d.p[0] = s.px; d.p[1] = s.py; d.p[2] = s.pz;
-                d.n[0] = s.nx; d.n[1] = s.ny; d.n[2] = s.nz;
-                d.uv[0] = s.u; d.uv[1] = s.v;
-                for (int k = 0; k < 4; ++k) d.c[k] = s.color[k];
-            }
-            [_levelVBs addObject:[_device newBufferWithBytes:verts.data()
-                                                      length:verts.size() * sizeof(GPUStaticVertex)
-                                                     options:MTLResourceStorageModeShared]];
-            [_levelIBs addObject:[_device newBufferWithBytes:lv.indices.data()
-                                                      length:lv.indices.size() * sizeof(uint16_t)
-                                                     options:MTLResourceStorageModeShared]];
-            _levelCounts.push_back(lv.indices.size());
-        }
-    }
 
-    if (_heroReady) _fists.bind(*_hero);
-    [self loadEnemiesFromLevel:assetRoot];
 
     // Original HUD atlas (sprites.pack). Missing assets degrade gracefully.
     _modStickBase = _modStickPuck = _modButton = _modBarFrame = -1;
@@ -398,7 +390,18 @@ fragment half4 frag(Out i                   [[stage_in]],
         } else {
             NSLog(@"[TotalMayhem] HUD sprites not found (%s) - run the sprites extraction step", uerr.c_str());
         }
+        NSString *pp = [NSString stringWithFormat:@"%s/sprites/paper_title9.tga", assetRoot.c_str()];
+        _paperTex = LoadPVRTC(_device, pp);
     }
+    _flowLabel = [[UILabel alloc] initWithFrame:view.bounds];
+    _flowLabel.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    _flowLabel.textAlignment = NSTextAlignmentCenter;
+    _flowLabel.numberOfLines = 0;
+    _flowLabel.textColor = UIColor.whiteColor;
+    _flowLabel.font = [UIFont boldSystemFontOfSize:30];
+    _flowLabel.shadowColor = UIColor.blackColor;
+    _flowLabel.shadowOffset = CGSizeMake(0, 2);
+    [view addSubview:_flowLabel];
 
     _actor = std::make_unique<Character>();
     if (_heroReady && animReady) {
@@ -424,7 +427,7 @@ fragment half4 frag(Out i                   [[stage_in]],
     NSString *levelLine = _levelReady
         ? [NSString stringWithFormat:@"Level 1 (all rooms)  %zu tris  nav %zu tris  %zu enemies",
            _room->visualTriangleCount(), _room->navmesh.indices.size() / 3, _npcs.size()]
-        : [NSString stringWithFormat:@"Level FAILED: %s", levelErr.c_str()];
+        : @"Level FAILED (see log)";
     _label.numberOfLines = 0;
     _label.text = [NSString stringWithFormat:@"%@\n%@\nLEFT drag = move  RIGHT drag = camera", heroLine, levelLine];
 
@@ -442,17 +445,22 @@ fragment half4 frag(Out i                   [[stage_in]],
     float rightX = cosf(_camYaw), rightY = -sinf(_camYaw);
     float moveX = rightX * _stickX + fwdX * _stickY;
     float moveY = rightY * _stickX + fwdY * _stickY;
-    if (_paused) dt = 0;
-    if (_actor && !_paused) _actor->update(dt, moveX, moveY);
+    BOOL playing = (_flow.phase == bdae::GameFlow::PLAYING) && !_paused;
+    if (!playing) dt = 0;
+    if (_actor && playing) _actor->update(dt, moveX, moveY);
 
     // -------- combat simulation (Milestone 6) --------
     uint32_t nowMs = (uint32_t)(now * 1000.0);
     uint32_t dtMs = (uint32_t)(dt * 1000.0f);
     Vec3 heroPos = _actor ? _actor->position() : Vec3{0, 0, 0};
     for (bdae::EnemyActor &f : _foes)
-        if (!_paused && f.update(nowMs, dtMs, heroPos) && _heroHP > 0)
+        if (playing && f.update(nowMs, dtMs, heroPos) && _heroHP > 0)
             _heroHP = fmaxf(0.0f, _heroHP - 5.0f);   // per-attack damage table not decoded yet
-    _fists.update(nowMs, heroPos, _actor ? _actor->yaw() : 0.0f, _foes);
+    if (playing) {
+        _fists.update(nowMs, heroPos, _actor ? _actor->yaw() : 0.0f, _foes);
+        if (_heroHP <= 0) _flow.onDeath(nowMs);
+        else _flow.updatePlaying(heroPos, nowMs);
+    }
     if (_heroReady) {
         const Clip *oc; uint32_t otl;
         if (_fists.poseInfo(nowMs, oc, otl)) _hero->poseAtTime(otl);   // punch overrides locomotion
@@ -460,8 +468,21 @@ fragment half4 frag(Out i                   [[stage_in]],
     if (_frameIdx % 30 == 0 && _levelReady) {
         int alive = 0; for (auto &f : _foes) if (f.alive()) ++alive;
         _label.text = [NSString stringWithFormat:
-            @"HP %.0f   enemies %d/%zu alive\nLEFT drag = move  tap = punch  RIGHT drag = camera",
-            _heroHP, alive, _foes.size()];
+            @"HP %.0f   enemies %d/%zu   checkpoints %d/%zu\nLEFT drag = move  tap = punch  RIGHT drag = camera",
+            _heroHP, alive, _foes.size(), _flow.visitedCount(), _flow.checkpointsAll.size()];
+        NSString *gn = [NSString stringWithUTF8String:
+            _strings.get("STR_GAME_NAME", "SPIDER-MAN: TOTAL MAYHEM").c_str()];
+        switch (_flow.phase) {
+            case bdae::GameFlow::TITLE:
+                _flowLabel.text = [NSString stringWithFormat:@"%@\nLEVEL %d\n\nTap to start",
+                                   gn, _flow.levelIndex + 1]; break;
+            case bdae::GameFlow::DEAD:
+                _flowLabel.text = @"SPIDER-MAN IS DOWN\n\nTap to retry from the last checkpoint"; break;
+            case bdae::GameFlow::COMPLETE:
+                _flowLabel.text = [NSString stringWithFormat:@"LEVEL %d COMPLETE\n\nTap to continue",
+                                   _flow.levelIndex + 1]; break;
+            default: _flowLabel.text = @""; break;
+        }
     }
 
     id<CAMetalDrawable> drawable = view.currentDrawable;
@@ -614,6 +635,23 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
             quad(W - 1.3f * bs, H - 1.3f * bs, bs, bs, mod(_modButton), 160, 160, 160, 140);
         }
     }
+    // full-screen flow overlays drawn beneath nothing else (segments by texture)
+    NSUInteger hudCount = verts.size();
+    NSUInteger darkStart = verts.size();
+    if (_flow.phase != bdae::GameFlow::PLAYING && !_showAtlasSheet) {
+        bdae::SpriteModule full{0, 0, 4, 4};   // any opaque texel region of _white
+        quad(0, 0, W, H, full, 10, 10, 18, _flow.phase == bdae::GameFlow::TITLE ? 235 : 200);
+    }
+    NSUInteger darkCount = verts.size() - darkStart;
+    NSUInteger paperStart = verts.size();
+    if ((_flow.phase == bdae::GameFlow::TITLE || _flow.phase == bdae::GameFlow::COMPLETE)
+        && _paperTex && !_showAtlasSheet) {
+        float ph = H * 0.66f, pw = ph;
+        bdae::SpriteModule pm{0, 0, 512, 512};
+        quad((W - pw) * 0.5f, (H - ph) * 0.42f, pw, ph, pm, 255, 255, 255, 255);
+    }
+    NSUInteger paperCount = verts.size() - paperStart;
+
     if (verts.empty()) return;
     NSUInteger bytes = verts.size() * sizeof(SpriteVert);
     NSUInteger cap = 512 * 6 * 20;
@@ -625,8 +663,18 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
     [enc setDepthStencilState:_noDepth];
     [enc setVertexBuffer:_spriteVB offset:off atIndex:0];
     [enc setVertexBytes:&vpsz length:sizeof(vpsz) atIndex:1];
-    [enc setFragmentTexture:_uiAtlas atIndex:0];
-    [enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:verts.size()];
+    if (darkCount) {
+        [enc setFragmentTexture:_white atIndex:0];
+        [enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:darkStart vertexCount:darkCount];
+    }
+    if (paperCount) {
+        [enc setFragmentTexture:_paperTex atIndex:0];
+        [enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:paperStart vertexCount:paperCount];
+    }
+    if (hudCount) {
+        [enc setFragmentTexture:_uiAtlas atIndex:0];
+        [enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:hudCount];
+    }
     [enc setDepthStencilState:_depth];
 }
 
@@ -648,6 +696,8 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
         {"MeleeThug_gun",        "thug_gun_mesh.bdae",     "thug_gun_anim.bdae"},
         {"RangeThug_hammer",     "thug_hammer_mesh.bdae",  "thug_hammer_anim.bdae"},
         {"RangeThug_big",        "thug_big_mesh.bdae",     "thug_big_anim.bdae"},
+        {"Boss_Sandman",         "sandman_mesh.bdae",      "sandman_anim.bdae"},
+        {"Boss_Rhino",           "rhino_mesh.bdae",        "rhino_anim.bdae"},
     };
     std::string statErr;
     std::map<std::string, bdae::EnemyStats> statTable =
@@ -656,14 +706,16 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
     static const std::map<std::string, std::string> kStatName = {
         {"MeleeThugEnemy_bat", "THUG_BAT"},   {"MeleeThugEnemy_knife", "THUG_KNIFE"},
         {"RangeThug_molotov", "THUG_MOLOTOV"},{"MeleeThug_gun", "THUG_GUN"},
-        {"RangeThug_hammer", "THUG_HAMMER"},  {"RangeThug_big", "THUG_BIG"}};
+        {"RangeThug_hammer", "THUG_HAMMER"},  {"RangeThug_big", "THUG_BIG"},
+        {"Boss_Sandman", "SANDMAN"},          {"Boss_Rhino", "RHINO"}};
     std::map<std::string, int> typeIndex;
     const NSUInteger kMaxNPC = 40;
     const NSUInteger kSlot = kBoneSlot;
 
     for (const LevelRoom::EnemySpawn &en : _room->enemies) {
         if (_npcs.size() >= kMaxNPC) break;
-        if (en.pos.z > 200.0f) continue;   // elevated placements (Sandman etc.) wait for real AI
+        bool isBoss = en.type.rfind("Boss_", 0) == 0;
+        if (en.pos.z > 200.0f && !isBoss) continue;   // elevated non-boss placements wait for triggers
         const Arch *arch = nullptr;
         for (const Arch &a : kArch)
             if (en.type.rfind(a.prefix, 0) == 0) { arch = &a; break; }
@@ -728,6 +780,8 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
         bdae::EnemyStats st;
         auto sn = kStatName.find(arch->prefix);
         if (sn != kStatName.end() && statTable.count(sn->second)) st = statTable[sn->second];
+        st.ranged = (std::strncmp(arch->prefix, "Range", 5) == 0) ||
+                    (std::strcmp(arch->prefix, "MeleeThug_gun") == 0);
         _foes.emplace_back();
         _foes.back().bind(_npcModel[ti].get(), _room.get(), st,
                           en.pos.x, en.pos.y, gz, en.yaw);
@@ -780,9 +834,69 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
     }
 }
 
+
+- (void)loadLevelIndex:(int)idx {
+    const std::string assetRoot = _assetRootStr;
+    std::string levelErr;
+    _levelCounts.clear();
+    _npcModel.clear(); _npcIndexCount.clear(); _npcIdle.clear();
+    _npcAnchor.clear(); _npcs.clear(); _foes.clear();
+    _npcBones = nil;
+    _room = std::make_unique<LevelRoom>();
+    _levelReady = _room->loadFullLevel(assetRoot, kLevelDirs[idx % kLevelCount], levelErr);
+    if (!_levelReady) NSLog(@"[TotalMayhem] level %d failed: %s", idx, levelErr.c_str());
+    _levelVBs = [NSMutableArray new];
+    _levelIBs = [NSMutableArray new];
+    if (_levelReady) {
+        for (const TriMesh &lv : _room->visualBatches) {
+            std::vector<GPUStaticVertex> verts(lv.vertices.size());
+            for (size_t i = 0; i < lv.vertices.size(); ++i) {
+                const Vertex &s = lv.vertices[i];
+                GPUStaticVertex &d = verts[i];
+                d.p[0] = s.px; d.p[1] = s.py; d.p[2] = s.pz;
+                d.n[0] = s.nx; d.n[1] = s.ny; d.n[2] = s.nz;
+                d.uv[0] = s.u; d.uv[1] = s.v;
+                for (int k = 0; k < 4; ++k) d.c[k] = s.color[k];
+            }
+            [_levelVBs addObject:[_device newBufferWithBytes:verts.data()
+                                                      length:verts.size() * sizeof(GPUStaticVertex)
+                                                     options:MTLResourceStorageModeShared]];
+            [_levelIBs addObject:[_device newBufferWithBytes:lv.indices.data()
+                                                      length:lv.indices.size() * sizeof(uint16_t)
+                                                     options:MTLResourceStorageModeShared]];
+            _levelCounts.push_back(lv.indices.size());
+        }
+    }
+
+    if (_heroReady) _fists.bind(*_hero);
+    [self loadEnemiesFromLevel:assetRoot];
+    if (_actor) {
+        _actor->bind(_hero.get(), _levelReady ? _room.get() : nullptr);
+        if (_levelReady && _room->hasSpawn) _actor->spawnAt(_room->spawn, _room->spawnYaw);
+    }
+    _heroHP = 100.0f;
+    if (_levelReady)
+        _flow.beginLevel(*_room, idx % kLevelCount, (uint32_t)(CACurrentMediaTime() * 1000.0));
+    NSLog(@"[TotalMayhem] level %d (%s): %zu enemies, %zu checkpoints", idx,
+          kLevelDirs[idx % kLevelCount], _foes.size(), _flow.checkpointsAll.size());
+}
+
 // ------------------------------------------------------------------ input ---
 - (void)touchBegin:(CGPoint)p {
-    
+    if (_flow.phase != bdae::GameFlow::PLAYING) {
+        uint32_t nowMs = (uint32_t)(CACurrentMediaTime() * 1000.0);
+        if (_flow.phase == bdae::GameFlow::TITLE) {
+            _flow.startPlay(nowMs);
+        } else if (_flow.phase == bdae::GameFlow::DEAD) {
+            _heroHP = 100.0f;
+            if (_actor) _actor->spawnAt(_flow.checkpoint, _flow.checkpointYaw);
+            _flow.respawn(nowMs);
+        } else if (_flow.phase == bdae::GameFlow::COMPLETE) {
+            [self loadLevelIndex:(_flow.levelIndex + 1) % kLevelCount];
+        }
+        return;
+    }
+
     CGFloat sw = UIScreen.mainScreen.bounds.size.width;
     CGFloat sh = UIScreen.mainScreen.bounds.size.height;
     // top-left corner: single tap = pause, double-height zone toggles atlas sheet

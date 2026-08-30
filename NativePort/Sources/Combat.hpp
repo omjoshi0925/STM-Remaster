@@ -14,6 +14,7 @@ struct EnemyStats {
     float noticeRange = 7200;    // f2: vision radius (72 m), same for all enemies
     float rangedRange = 1200;    // f9: ranged-attack distance (gun 1200, rhino 3000)
     uint32_t attackIntervalMs = 2000;
+    bool ranged = false;         // Range*/gun archetypes attack from rangedRange
 };
 
 // Parses configs/EnemysAttributeConfigs.bin (count, then records of

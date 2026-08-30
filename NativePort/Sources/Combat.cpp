@@ -31,9 +31,15 @@ std::map<std::string, EnemyStats> loadEnemyStats(const std::string& configsDir,
     // UPPERCASE_NAME string.  Numeric slot k counts numbers since record start.
     size_t off = 4;
     std::string cur; int slot = 0;
+    auto stringAt = [&](size_t o, uint16_t& L) {
+        if (o + 2 > b.size()) return false;
+        std::memcpy(&L, &b[o], 2);
+        return L >= 2 && L <= 48 && o + 2 + L <= b.size() && printable(&b[o + 2], L);
+    };
     while (off + 1 < b.size()) {
-        uint16_t L; std::memcpy(&L, &b[off], 2);
-        if (L >= 2 && L <= 48 && off + 2 + L <= b.size() && printable(&b[off + 2], L)) {
+        uint16_t L;
+        if (!stringAt(off, L) && stringAt(off + 2, L)) off += 2;   // 2-byte pad before string
+        if (stringAt(off, L)) {
             std::string s((char*)&b[off + 2], L);
             bool upper = true;
             for (char c : s) if (!(std::isupper((unsigned char)c) || c == '_' || std::isdigit((unsigned char)c))) { upper = false; break; }
@@ -85,10 +91,13 @@ void EnemyActor::bind(Model* m, const LevelRoom* lvl, const EnemyStats& s,
     cIdle   = pickClip(*m, {"idle", "idle_cycle"});
     cWalk   = pickClip(*m, {"walk", "walk_cycle", "run", "move"});
     cAttack = pickClip(*m, {"idle_at1_idle", "idle_knife_at_idle", "idle_at2_idle",
+                            "idle_shoot_left_idle", "idle_shoot_right_idle",
                             "idle_attack_hammer_idle", "idlebaz_rush_attack_idlebaz",
-                            "idle_gore_attack_idle"});
+                            "idle_gore_attack_idle", "run_bash_attack",
+                            "ground_attack1", "rise_rush_attack"});
     cHurt   = pickClip(*m, {"idle_hurt_idle", "idle_hurt_left_idle",
-                            "idle_hurt_right_idle", "idle_hurt_heavy_idle"});
+                            "idle_hurt_right_idle", "idle_hurt_heavy_idle",
+                            "idle_hurt", "hurt"});
     cDie    = pickClip(*m, {"die", "death", "dead", "idle_to_onground",
                             "air_to_onground", "air_attack_to_onground"});
     state = IDLE; stateStartMs = 0;
@@ -109,7 +118,8 @@ bool EnemyActor::update(uint32_t nowMs, uint32_t dtMs, const Vec3& hero) {
             if (dist < stats.noticeRange) { state = CHASE; stateStartMs = nowMs; }
             break;
         case CHASE: {
-            if (dist <= stats.attackRange * 0.9f) { state = ATTACK; stateStartMs = nowMs; break; }
+            float engage = stats.ranged ? stats.rangedRange * 0.9f : stats.attackRange * 0.9f;
+            if (dist <= engage) { state = ATTACK; stateStartMs = nowMs; break; }
             float step = stats.moveSpeed * (dtMs / 1000.0f);
             float nx = x + (dx / dist) * step, ny = y + (dy / dist) * step, nz;
             if (level && level->canStandAt(nx, ny, nz)) { x = nx; y = ny; z = nz; }
@@ -120,12 +130,14 @@ bool EnemyActor::update(uint32_t nowMs, uint32_t dtMs, const Vec3& hero) {
         case ATTACK:
             if (nowMs - stateStartMs >= clipLen(cAttack)) {
                 state = COOLDOWN; stateStartMs = nowMs;
-                return dist <= stats.attackRange * 1.2f;   // strike lands at clip end
+                float reach = stats.ranged ? stats.rangedRange * 1.2f : stats.attackRange * 1.2f;
+                return dist <= reach;   // strike lands at clip end
             }
             break;
         case COOLDOWN:
             if (nowMs - stateStartMs >= stats.attackIntervalMs) {
-                state = (dist <= stats.attackRange * 0.9f) ? ATTACK : CHASE;
+                float engage = stats.ranged ? stats.rangedRange * 0.9f : stats.attackRange * 0.9f;
+                state = (dist <= engage) ? ATTACK : CHASE;
                 stateStartMs = nowMs;
             }
             break;
