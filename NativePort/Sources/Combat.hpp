@@ -25,6 +25,12 @@ struct EnemyStats {
 std::map<std::string, EnemyStats> loadEnemyStats(const std::string& configsDir,
                                                  std::string& err);
 
+// EnemysAttackConfigs.bin: 85 named attack rows; first numeric field = damage.
+// Rows named ATTACK_*_NONE / READY carry 0. Enemy->row linkage is not yet
+// decoded, so callers take a representative melee damage (documented).
+std::map<std::string, float> loadAttackDamage(const std::string& configsDir,
+                                              std::string& err);
+
 const Clip* pickClip(const Model& m, std::initializer_list<const char*> names);
 
 struct EnemyActor {
@@ -43,7 +49,8 @@ struct EnemyActor {
               float px, float py, float pz, float pyaw);
     // Advances the AI. Returns true if this update landed a hit on the hero.
     bool update(uint32_t nowMs, uint32_t dtMs, const Vec3& hero);
-    void takeHit(float dmg, uint32_t nowMs);
+    // fromX/fromY = attacker position; the victim is knocked straight back.
+    void takeHit(float dmg, uint32_t nowMs, float fromX, float fromY);
     bool alive() const { return state != DEAD; }
     // Which clip + shared-timeline time the renderer should pose right now.
     void poseInfo(uint32_t nowMs, const Clip*& clip, uint32_t& timelineMs) const;
@@ -51,10 +58,16 @@ struct EnemyActor {
 
 struct HeroCombat {
     float hp = 100;
-    const Clip *cWindup = nullptr, *cRecover = nullptr;
-    uint32_t punchStartMs = 0;         // 0 = not punching
+    // Three-hit combo from the original clip set. Tapping during the recover
+    // window chains to the next stage; the window lapsing resets to stage 0.
+    struct Stage { const Clip* windup; const Clip* recover; float damage; };
+    Stage stages[3]{};
+    int stage = 0;
+    bool queuedNext = false;
+    uint32_t punchStartMs = 0;         // 0 = not attacking
     bool hitApplied = false;
-    float damage = 10.0f, reach = 260.0f;
+    bool justStruck = false;           // true for the update that lands the strike
+    float reach = 260.0f;
 
     void bind(const Model& hero);
     bool punching(uint32_t nowMs) const;

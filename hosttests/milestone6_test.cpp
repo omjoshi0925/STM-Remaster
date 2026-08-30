@@ -70,7 +70,7 @@ int main(int argc, char** argv) {
 
     HeroCombat fists;
     fists.bind(man);
-    ck(fists.cWindup && fists.cRecover, "hero punch clips resolve");
+    ck(fists.stages[0].windup && fists.stages[0].recover, "hero punch clips resolve");
 
     // ------------------------------------------------ phase 1: notice + chase
     // Teleport hero within notice range but outside attack range.

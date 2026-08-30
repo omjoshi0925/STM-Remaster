@@ -15,6 +15,9 @@
 
 namespace bdae {
 
+// Resolves a path against the filesystem ignoring case (original data mixes cases).
+std::string resolveCaseInsensitive(const std::string& path);
+
 struct IrrNode {
     int id = -1;
     int parentId = -1;
@@ -68,6 +71,16 @@ struct LevelRoom {
     float spawnYaw = 0;
     struct EnemySpawn { std::string type; Vec3 pos; float yaw = 0; };
     std::vector<EnemySpawn> enemies;
+
+    // World props placed by the original scenes (lampposts, cars, hostages...).
+    struct PropSpawn {
+        std::string type;      // !GameType
+        std::string meshFile;  // normalized relative path (entities/meshes_bin/x.bdae)
+        std::string name;
+        Mat4 transform;        // absolute world transform from the scene
+    };
+    std::vector<PropSpawn> props;
+    std::vector<Vec3> bonuses;   // Bonus pickups carry no mesh, position only
     std::vector<std::pair<std::string, Vec3>> markers;   // checkpoints, waypoints, web points
 
     // assetRoot is the directory that contains "levelnew_01/...".

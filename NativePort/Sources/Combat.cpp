@@ -78,6 +78,36 @@ std::map<std::string, EnemyStats> loadEnemyStats(const std::string& configsDir,
     return out;
 }
 
+std::map<std::string, float> loadAttackDamage(const std::string& configsDir,
+                                              std::string& err) {
+    std::map<std::string, float> out;
+    std::vector<uint8_t> b;
+    if (!readAll(configsDir + "/EnemysAttackConfigs.bin", b)) {
+        err = "cannot read EnemysAttackConfigs.bin"; return out;
+    }
+    auto stringAt = [&](size_t o, uint16_t& L) {
+        if (o + 2 > b.size()) return false;
+        std::memcpy(&L, &b[o], 2);
+        return L >= 2 && L <= 64 && o + 2 + L <= b.size() && printable(&b[o + 2], L);
+    };
+    size_t off = 4; std::string cur; bool haveFirst = false;
+    while (off + 1 < b.size()) {
+        uint16_t L;
+        if (!stringAt(off, L) && stringAt(off + 2, L)) off += 2;
+        if (stringAt(off, L)) {
+            cur.assign((char*)&b[off + 2], L); haveFirst = false; off += 2 + L; continue;
+        }
+        if (off + 4 > b.size()) break;
+        if (!cur.empty() && !haveFirst) {
+            uint32_t u; std::memcpy(&u, &b[off], 4);
+            out[cur] = (float)u; haveFirst = true;
+        }
+        off += 4;
+    }
+    if (out.empty()) err = "no attack rows parsed";
+    return out;
+}
+
 const Clip* pickClip(const Model& m, std::initializer_list<const char*> names) {
     for (const char* n : names) if (const Clip* c = m.findClip(n)) return c;
     return nullptr;
@@ -149,9 +179,19 @@ bool EnemyActor::update(uint32_t nowMs, uint32_t dtMs, const Vec3& hero) {
     return false;
 }
 
-void EnemyActor::takeHit(float dmg, uint32_t nowMs) {
+void EnemyActor::takeHit(float dmg, uint32_t nowMs, float fromX, float fromY) {
     if (state == DEAD) return;
     hp -= dmg;
+    // knockback straight back from the attacker, gated by walkable ground
+    float dx = x - fromX, dy = y - fromY;
+    float d = std::sqrt(dx * dx + dy * dy);
+    if (d > 1.0f && level) {
+        float push = 70.0f;
+        float nx = x + dx / d * push, ny = y + dy / d * push, nz;
+        if      (level->canStandAt(nx, ny, nz)) { x = nx; y = ny; z = nz; }
+        else if (level->canStandAt(nx, y, nz))  { x = nx; z = nz; }
+        else if (level->canStandAt(x, ny, nz))  { y = ny; z = nz; }
+    }
     if (hp <= 0) { hp = 0; state = DEAD; }
     else         { state = HURT; }
     stateStartMs = nowMs;
@@ -174,21 +214,44 @@ void EnemyActor::poseInfo(uint32_t nowMs, const Clip*& clip, uint32_t& tl) const
 
 // ----------------------------------------------------------------- HeroCombat
 void HeroCombat::bind(const Model& hero) {
-    cWindup  = pickClip(hero, {"idle_to_punch_right"});
-    cRecover = pickClip(hero, {"punch_right_to_idle"});
+    stages[0] = { pickClip(hero, {"idle_to_punch_right"}),
+                  pickClip(hero, {"punch_right_to_idle"}), 10.0f };
+    stages[1] = { pickClip(hero, {"idle_to_far_attack", "far_attack"}),
+                  pickClip(hero, {"far_attack_to_idle"}), 10.0f };
+    stages[2] = { pickClip(hero, {"backflip_kick"}),
+                  pickClip(hero, {"backflip_kick_to_idle"}), 15.0f };
 }
 bool HeroCombat::punching(uint32_t nowMs) const {
     if (!punchStartMs) return false;
-    return nowMs - punchStartMs < clipLen(cWindup) + clipLen(cRecover);
+    const Stage& s = stages[stage];
+    return nowMs - punchStartMs < clipLen(s.windup) + clipLen(s.recover);
 }
 void HeroCombat::tryPunch(uint32_t nowMs) {
-    if (!punching(nowMs)) { punchStartMs = nowMs; hitApplied = false; }
+    if (!punchStartMs) { stage = 0; punchStartMs = nowMs; hitApplied = false; queuedNext = false; return; }
+    if (punching(nowMs)) {
+        // chaining: a tap once the strike has landed queues the next stage
+        if (hitApplied && stage < 2) queuedNext = true;
+        return;
+    }
+    stage = 0; punchStartMs = nowMs; hitApplied = false; queuedNext = false;
 }
 int HeroCombat::update(uint32_t nowMs, const Vec3& pos, float yaw,
                        std::vector<EnemyActor>& enemies) {
-    if (!punchStartMs || hitApplied) return 0;
-    if (nowMs - punchStartMs < clipLen(cWindup)) return 0;   // strike at windup end
-    hitApplied = true;
+    justStruck = false;
+    if (!punchStartMs) return 0;
+    const Stage& s = stages[stage];
+    uint32_t local = nowMs - punchStartMs;
+    // stage finished: chain or reset
+    if (local >= clipLen(s.windup) + clipLen(s.recover)) {
+        if (queuedNext && stage < 2) {
+            ++stage; punchStartMs = nowMs; hitApplied = false; queuedNext = false;
+        } else {
+            punchStartMs = 0; stage = 0;
+        }
+        return 0;
+    }
+    if (hitApplied || local < clipLen(s.windup)) return 0;   // strike at windup end
+    hitApplied = true; justStruck = true;
     int hits = 0;
     float fx = std::cos(yaw), fy = std::sin(yaw);
     for (EnemyActor& e : enemies) {
@@ -196,17 +259,18 @@ int HeroCombat::update(uint32_t nowMs, const Vec3& pos, float yaw,
         float dx = e.x - pos.x, dy = e.y - pos.y;
         float d = std::sqrt(dx * dx + dy * dy);
         if (d > reach) continue;
-        if (d > 1.0f && (dx * fx + dy * fy) / d < 0.25f) continue;   // ~75-degree arc
-        e.takeHit(damage, nowMs);
+        if (d > 1.0f && (dx * fx + dy * fy) / d < 0.25f) continue;
+        e.takeHit(s.damage, nowMs, pos.x, pos.y);
         ++hits;
     }
     return hits;
 }
 bool HeroCombat::poseInfo(uint32_t nowMs, const Clip*& clip, uint32_t& tl) const {
     if (!punching(nowMs)) return false;
+    const Stage& s = stages[stage];
     uint32_t local = nowMs - punchStartMs;
-    if (local < clipLen(cWindup)) { clip = cWindup; tl = cWindup->startMs + local; }
-    else { clip = cRecover; tl = cRecover->startMs + (local - clipLen(cWindup)); }
+    if (local < clipLen(s.windup)) { clip = s.windup; tl = s.windup->startMs + local; }
+    else { clip = s.recover; tl = s.recover->startMs + (local - clipLen(s.windup)); }
     return true;
 }
 

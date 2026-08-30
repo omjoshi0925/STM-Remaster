@@ -15,6 +15,7 @@ $CXX -std=c++17 -O2 -I "$SRC" -o /tmp/stm_m5       "$SRC/BDAEModel.cpp" "$SRC/Le
 $CXX -std=c++17 -O2 -I "$SRC" -o /tmp/stm_m6       "$SRC/BDAEModel.cpp" "$SRC/Level.cpp" "$SRC/Character.cpp" "$SRC/Combat.cpp" milestone6_test.cpp
 $CXX -std=c++17 -O2 -I "$SRC" -o /tmp/stm_m7       "$SRC/UIKitData.cpp" milestone7_test.cpp
 $CXX -std=c++17 -O2 -I "$SRC" -o /tmp/stm_m8       "$SRC/BDAEModel.cpp" "$SRC/Level.cpp" "$SRC/Character.cpp" "$SRC/Combat.cpp" "$SRC/GameFlow.cpp" milestone8_test.cpp
+$CXX -std=c++17 -O2 -I "$SRC" -o /tmp/stm_m9       "$SRC/BDAEModel.cpp" "$SRC/Level.cpp" "$SRC/Character.cpp" "$SRC/Combat.cpp" "$SRC/GameFlow.cpp" milestone9_test.cpp
 echo "== bdae selftest ==";  /tmp/stm_selftest "$ASSETS/entities/meshes_bin/spiderman_mesh.bdae" "$ASSETS/entities/meshes_bin/spiderman_anim.bdae"
 echo "== level test ==";     /tmp/stm_level "$ASSETS"
 echo "== milestone 4 ==";    /tmp/stm_m4 "$ASSETS"
@@ -22,3 +23,4 @@ echo "== milestone 5 ==";    /tmp/stm_m5 "$ASSETS"
 echo "== milestone 6 ==";    /tmp/stm_m6 "$ASSETS"
 echo "== milestone 7 ==";    /tmp/stm_m7 "$ASSETS"
 echo "== milestone 8 ==";    /tmp/stm_m8 "$ASSETS"
+echo "== milestone 9 ==";    /tmp/stm_m9 "$ASSETS"

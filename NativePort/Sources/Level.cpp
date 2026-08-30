@@ -58,6 +58,8 @@ std::string lower(std::string s) {
     return s;
 }
 
+} // anonymous helpers
+
 // The .irr files reference "meshes_bin/nav01.bdae" while the pack actually
 // contains "Nav01.bdae".  macOS hides this; a case-sensitive filesystem does
 // not, so resolve the real spelling by scanning the directory once.
@@ -74,8 +76,6 @@ std::string resolveCaseInsensitive(const std::string& path) {
     closedir(d);
     return found.empty() ? path : found;
 }
-
-} // namespace
 
 // ============================================================== irr parsing ===
 bool IrrScene::load(const std::string& path, std::string& err) {
@@ -237,6 +237,22 @@ bool LevelRoom::load(const std::string& assetRoot, const std::string& levelDir,
         if      (n.gameType == "Geometry")   loadVisual(n);
         else if (n.gameType == "Collisions") loadInto(n, collision);
         else if (n.gameType == "NavMesh")    loadInto(n, navmesh);
+        else if (n.gameType == "DestroyableObject" || n.gameType == "StaticObject" ||
+                 n.gameType == "Car" || n.gameType == "AnimatedObject" ||
+                 n.gameType == "Hostage") {
+            std::string mf = n.meshFile;
+            for (char& ch : mf) if (ch == '\\') ch = '/';
+            size_t sp = mf.find("entities/");
+            if (sp != std::string::npos) mf = mf.substr(sp);
+            else {
+                while (mf.rfind("../", 0) == 0 || mf.rfind("./", 0) == 0)
+                    mf = mf.substr(mf.find('/') + 1);
+                if (!mf.empty()) mf = levelDir + "/" + mf;   // level-local props (billboards etc.)
+            }
+            if (!mf.empty()) props.push_back({ n.gameType, mf, n.name, n.absolute });
+        }
+        else if (n.gameType == "Bonus")
+            bonuses.push_back(Vec3{ n.absolute.m[12], n.absolute.m[13], n.absolute.m[14] });
         else if (n.gameType == "SpiderMan" || n.gameType == "SpawnPoint") {
             if (!hasSpawn) {
                 hasSpawn = true;
