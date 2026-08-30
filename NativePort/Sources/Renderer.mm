@@ -5,6 +5,7 @@
 #import "Renderer.h"
 #import <UIKit/UIKit.h>
 #import <QuartzCore/QuartzCore.h>
+#include "GameRuntime.hpp"
 #include "BDAEModel.hpp"
 #include "Level.hpp"
 #include "Character.hpp"
@@ -187,6 +188,7 @@ fragment half4 frag(Out i                   [[stage_in]],
     std::vector<NPCInst> _npcs;
     id<MTLBuffer> _npcBones;
 
+    std::unique_ptr<GameRuntime> _game;
     std::unique_ptr<Model> _hero;
     std::unique_ptr<LevelRoom> _room;
     std::unique_ptr<Character> _actor;
@@ -211,6 +213,7 @@ fragment half4 frag(Out i                   [[stage_in]],
     _device = MTLCreateSystemDefaultDevice();
     _queue = [_device newCommandQueue];
     _label = label;
+    _game = std::make_unique<GameRuntime>();
 
     view.device = _device;
     view.colorPixelFormat = MTLPixelFormatBGRA8Unorm;
@@ -250,7 +253,7 @@ fragment half4 frag(Out i                   [[stage_in]],
     _white = MakeWhite(_device);
 
     NSString *root = NSBundle.mainBundle.resourcePath;
-    
+    _game->boot(root.UTF8String);
 
     std::string assetRoot = std::string(root.UTF8String) + "/Assets";
     std::string err, heroErr, animErr, levelErr;
@@ -348,7 +351,7 @@ fragment half4 frag(Out i                   [[stage_in]],
     CFTimeInterval now = CACurrentMediaTime();
     float dt = (float)fmin(0.05, now - _last);
     _last = now;
-    
+    _game->update(dt);
 
     // Stick input is camera-relative: +Y on the stick walks away from the camera.
     float fwdX = -sinf(_camYaw), fwdY = -cosf(_camYaw);
@@ -565,7 +568,7 @@ fragment half4 frag(Out i                   [[stage_in]],
 
 // ------------------------------------------------------------------ input ---
 - (void)touchBegin:(CGPoint)p {
-    
+    _game->touchBegin(p.x, p.y);
     CGFloat half = UIScreen.mainScreen.bounds.size.width * 0.5;
     if (p.x < half && _moveTouchActive < 0) {
         _moveTouchActive = 1;
@@ -580,7 +583,7 @@ fragment half4 frag(Out i                   [[stage_in]],
 }
 
 - (void)touchMove:(CGPoint)p {
-    
+    _game->touchMove(p.x, p.y);
     CGFloat half = UIScreen.mainScreen.bounds.size.width * 0.5;
     if (p.x < half && _moveTouchActive > 0) {
         const float radius = 70.0f;
@@ -599,13 +602,13 @@ fragment half4 frag(Out i                   [[stage_in]],
 }
 
 - (void)touchEnd:(CGPoint)p {
-    
+    _game->touchEnd(p.x, p.y);
     CGFloat half = UIScreen.mainScreen.bounds.size.width * 0.5;
     if (p.x < half) { _moveTouchActive = -1; _stickX = _stickY = 0; }
     else            { _lookTouchActive = -1; }
 }
 
-- (void)accelerometerX:(float)x y:(float)y z:(float)z { }
+- (void)accelerometerX:(float)x y:(float)y z:(float)z { _game->accelerometer(x, y, z); }
 - (void)mtkView:(MTKView *)view drawableSizeWillChange:(CGSize)size {}
 
 @end
