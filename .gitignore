@@ -1,0 +1,13 @@
+# Original game data stays local-only: it is Gameloft/Marvel copyrighted content
+# and the packs exceed GitHub's 100 MB file limit anyway.
+Assets/
+OriginalPacks/
+*.ipa
+*.pack
+*.vpk
+# build output + apply-script backups
+build-ios/
+Sources.backup-*
+_superseded/
+.DS_Store
+__pycache__/

@@ -1,0 +1,672 @@
+/mnt/data/spiderman_ipa_inspect/Payload/Spiderman.app/Spiderman:
+
+SYMBOL TABLE:
+05614542      d  *UND* .hidden radr://5614542
+00370328  w    F __TEXT,__text __ZN10TrophyInfoD2Ev
+0035ad64  w    F __TEXT,__text __ZN17GLLiveStateGLLIVE8InstanceEv
+00387d98  w    F __TEXT,__text __ZN3vox10DecoderRaw7GetTypeEv
+00387da0  w    F __TEXT,__text __ZN3vox10DecoderRaw8GetParamEv
+00387df0  w    F __TEXT,__text __ZN3vox10DecoderRawD0Ev
+00387dd8  w    F __TEXT,__text __ZN3vox10DecoderRawD1Ev
+003873f4  w    F __TEXT,__text __ZN3vox11DecoderMPC87GetTypeEv
+003873fc  w    F __TEXT,__text __ZN3vox11DecoderMPC88GetParamEv
+0038741c  w    F __TEXT,__text __ZN3vox11DecoderMPC8D0Ev
+00387404  w    F __TEXT,__text __ZN3vox11DecoderMPC8D1Ev
+00397a0c  w    F __TEXT,__text __ZN3vox11FileLimited5WriteEPKvii
+00397a2c  w    F __TEXT,__text __ZN3vox11FileLimitedD0Ev
+00397a14  w    F __TEXT,__text __ZN3vox11FileLimitedD1Ev
+00388684  w    F __TEXT,__text __ZN3vox11StreamCFile7GetTypeEv
+00388780  w    F __TEXT,__text __ZN3vox11StreamCFileD0Ev
+003887f8  w    F __TEXT,__text __ZN3vox11StreamCFileD1Ev
+00387b18  w    F __TEXT,__text __ZN3vox12DecoderMSWav7GetTypeEv
+00387b20  w    F __TEXT,__text __ZN3vox12DecoderMSWav8GetParamEv
+003a2528  w    F __TEXT,__text __ZN3vox13DecoderNative7GetTypeEv
+003a2530  w    F __TEXT,__text __ZN3vox13DecoderNative8GetParamEv
+00397a04  w    F __TEXT,__text __ZN3vox13FileInterface10GetFilePtrEv
+003979e0  w    F __TEXT,__text __ZN3vox13FileInterfaceD0Ev
+003979c8  w    F __TEXT,__text __ZN3vox13FileInterfaceD1Ev
+0039b5dc  w    F __TEXT,__text __ZN3vox13SZipFileEntryaSERKS0_
+00396e44  w    F __TEXT,__text __ZN3vox15DriverInterface15SetDSPParameterEiPv
+00396e50  w    F __TEXT,__text __ZN3vox15DriverInterface18SetSFXPresetActiveEibf
+00396e48  w    F __TEXT,__text __ZN3vox15DriverInterface19SetStaticBusRoutingEPc
+00396e4c  w    F __TEXT,__text __ZN3vox15DriverInterface20SetDynamicBusRoutingEPc
+00396e40  w    F __TEXT,__text __ZN3vox15DriverInterface6UpdateEf
+00388664  w    F __TEXT,__text __ZN3vox15StreamInterface4InitEv
+0038866c  w    F __TEXT,__text __ZN3vox15StreamInterface4SizeEv
+00388668  w    F __TEXT,__text __ZN3vox15StreamInterface8ShutdownEv
+00387d54  w    F __TEXT,__text __ZN3vox16DecoderInterface4InitEv
+00387d58  w    F __TEXT,__text __ZN3vox16DecoderInterface8ShutdownEv
+00387da8  w    F __TEXT,__text __ZN3vox16DecoderRawCursor20AllowBufferReferenceEv
+00387e2c  w    F __TEXT,__text __ZN3vox16DecoderRawCursorD0Ev
+00387e14  w    F __TEXT,__text __ZN3vox16DecoderRawCursorD1Ev
+00388250  w    F __TEXT,__text __ZN3vox16DecoderStbVorbis7GetTypeEv
+00388258  w    F __TEXT,__text __ZN3vox16DecoderStbVorbis8GetParamEv
+0038868c  w    F __TEXT,__text __ZN3vox17StreamCFileCursor10IsSeekableEv
+00388708  w    F __TEXT,__text __ZN3vox17StreamCFileCursorD0Ev
+00388694  w    F __TEXT,__text __ZN3vox17StreamCFileCursorD1Ev
+00388cf0  w    F __TEXT,__text __ZN3vox18StreamMemoryBuffer7GetTypeEv
+00395814  w    F __TEXT,__text __ZN3vox19PriorityBankManagerD1Ev
+003a104c  w    F __TEXT,__text __ZN3vox19VoxNativeSubDecoderD0Ev
+003a1070  w    F __TEXT,__text __ZN3vox19VoxNativeSubDecoderD1Ev
+00396e38  w    F __TEXT,__text __ZN3vox21DriverSourceInterface15SetDSPParameterEiPv
+00396e3c  w    F __TEXT,__text __ZN3vox21DriverSourceInterface6UpdateEf
+0038867c  w    F __TEXT,__text __ZN3vox21StreamCursorInterface20AllowBufferReferenceEv
+00388674  w    F __TEXT,__text __ZN3vox21StreamCursorInterface4InitEv
+00388678  w    F __TEXT,__text __ZN3vox21StreamCursorInterface8ShutdownEv
+0037b5c8  w    F __TEXT,__text __ZN3vox21VoxMSWavSubDecoderPCMD0Ev
+0037b5ec  w    F __TEXT,__text __ZN3vox21VoxMSWavSubDecoderPCMD1Ev
+00387d88  w    F __TEXT,__text __ZN3vox22DecoderCursorInterface15GetStreamCursorEv
+00387d90  w    F __TEXT,__text __ZN3vox22DecoderCursorInterface20AllowBufferReferenceEv
+00387d5c  w    F __TEXT,__text __ZN3vox22DecoderCursorInterface4InitEv
+00387d64  w    F __TEXT,__text __ZN3vox22DecoderCursorInterface5ResetEv
+00387d80  w    F __TEXT,__text __ZN3vox22DecoderCursorInterface7SetLoopEb
+00387d60  w    F __TEXT,__text __ZN3vox22DecoderCursorInterface8ShutdownEv
+0039f904  w    F __TEXT,__text __ZN3vox22VoxNativeSubDecoderPCM17GetDecodingBufferEv
+0039f900  w    F __TEXT,__text __ZN3vox22VoxNativeSubDecoderPCM20AdjustBufferPositionEv
+0039f90c  w    F __TEXT,__text __ZN3vox22VoxNativeSubDecoderPCM21ReleaseDecodingBufferEi
+0039f8f8  w    F __TEXT,__text __ZN3vox22VoxNativeSubDecoderPCM4SeekEj
+00388d34  w    F __TEXT,__text __ZN3vox24StreamMemoryBufferCursor10IsSeekableEv
+00388d44  w    F __TEXT,__text __ZN3vox24StreamMemoryBufferCursor20AllowBufferReferenceEv
+00388d3c  w    F __TEXT,__text __ZN3vox24StreamMemoryBufferCursor4TellEv
+00388d10  w    F __TEXT,__text __ZN3vox24StreamMemoryBufferCursorD0Ev
+00388cf8  w    F __TEXT,__text __ZN3vox24StreamMemoryBufferCursorD1Ev
+0039f2f4  w    F __TEXT,__text __ZN3vox27VoxNativeSubDecoderIMAADPCM4SeekEj
+00396e5c  w    F __TEXT,__text __ZN3vox29DriverCallbackSourceInterface14GetBufferCountEv
+00396e54  w    F __TEXT,__text __ZN3vox29DriverCallbackSourceInterface20AllowBufferReferenceEv
+003958f4  w    F __TEXT,__text __ZN3vox7DataObjD0Ev
+00395964  w    F __TEXT,__text __ZN3vox7DataObjD1Ev
+00387b28  w    F __TEXT,__text __ZN3vox8DataNode9DropNodesEv
+00394bfc  w    F __TEXT,__text __ZN3vox9HandlableD0Ev
+00394c2c  w    F __TEXT,__text __ZN3vox9HandlableD1Ev
+00394bf4  w    F __TEXT,__text __ZNK3vox6Handle5GetIdEv
+00396264  w    F __TEXT,__text __ZNSbIcSt11char_traitsIcEN3vox10SAllocatorIcLNS1_10VoxMemHintE0EEEE12_S_constructIPKcEEPcT_SA_RKS4_St20forward_iterator_tag
+0039b760  w    F __TEXT,__text __ZNSbIcSt11char_traitsIcEN3vox10SAllocatorIcLNS1_10VoxMemHintE0EEEE12_S_constructIPcEES7_T_S8_RKS4_St20forward_iterator_tag
+003fe1c0  w    O __DATA,__data __ZNSbIcSt11char_traitsIcEN3vox10SAllocatorIcLNS1_10VoxMemHintE0EEEE4_Rep20_S_empty_rep_storageE
+00397a50  w    F __TEXT,__text __ZNSbIcSt11char_traitsIcEN3vox10SAllocatorIcLNS1_10VoxMemHintE0EEEE4_Rep7_M_grabERKS4_S8_
+00397ce0  w    F __TEXT,__text __ZNSbIcSt11char_traitsIcEN3vox10SAllocatorIcLNS1_10VoxMemHintE0EEEE6appendEPKcj
+00388864  w    F __TEXT,__text __ZNSbIcSt11char_traitsIcEN3vox10SAllocatorIcLNS1_10VoxMemHintE0EEEE6assignEPKcj
+00397b78  w    F __TEXT,__text __ZNSbIcSt11char_traitsIcEN3vox10SAllocatorIcLNS1_10VoxMemHintE0EEEE7reserveEj
+00396368  w    F __TEXT,__text __ZNSbIcSt11char_traitsIcEN3vox10SAllocatorIcLNS1_10VoxMemHintE0EEEE9_M_mutateEjjj
+0039c140  w    F __TEXT,__text __ZNSt3mapISbIcSt11char_traitsIcEN3vox10SAllocatorIcLNS2_10VoxMemHintE0EEEENS2_13SZipFileEntryENS2_10StringCompENS3_ISt4pairIKS6_S7_ELS4_0EEEEixERSA_
+003a36c0  w    F __TEXT,__text __ZNSt3mapISbIcSt11char_traitsIcEN3vox10SAllocatorIcLNS2_10VoxMemHintE0EEEEiNS2_13StringCompareENS3_ISt4pairIKS6_iELS4_0EEEEixERS9_
+0039b3e4  w    F __TEXT,__text __ZNSt4pairIKSbIcSt11char_traitsIcEN3vox10SAllocatorIcLNS2_10VoxMemHintE0EEEENS2_13SZipFileEntryEED1Ev
+0039a5d8  w    F __TEXT,__text __ZNSt6vectorIN3vox12DriverBufferENS0_10SAllocatorIS1_LNS0_10VoxMemHintE0EEEE13_M_insert_auxEN9__gnu_cxx17__normal_iteratorIPS1_S5_EERKS1_
+003951d8  w    F __TEXT,__text __ZNSt6vectorIN3vox12PriorityBankENS0_10SAllocatorIS1_LNS0_10VoxMemHintE0EEEE13_M_insert_auxEN9__gnu_cxx17__normal_iteratorIPS1_S5_EERKS1_
+00395708  w    F __TEXT,__text __ZNSt6vectorIN3vox12PriorityBankENS0_10SAllocatorIS1_LNS0_10VoxMemHintE0EEEE7reserveEm
+0039560c  w    F __TEXT,__text __ZNSt6vectorIN3vox12PriorityBankENS0_10SAllocatorIS1_LNS0_10VoxMemHintE0EEEE9push_backERKS1_
+003a383c  w    F __TEXT,__text __ZNSt6vectorIN3vox16TransitionParamsENS0_10SAllocatorIS1_LNS0_10VoxMemHintE0EEEE13_M_insert_auxEN9__gnu_cxx17__normal_iteratorIPS1_S5_EERKS1_
+003a39e4  w    F __TEXT,__text __ZNSt6vectorIN3vox16TransitionParamsENS0_10SAllocatorIS1_LNS0_10VoxMemHintE0EEEEaSERKS5_
+00394d60  w    F __TEXT,__text __ZNSt6vectorIN3vox19PriorityBankElementENS0_10SAllocatorIS1_LNS0_10VoxMemHintE0EEEE13_M_insert_auxEN9__gnu_cxx17__normal_iteratorIPS1_S5_EERKS1_
+00394f38  w    F __TEXT,__text __ZNSt6vectorIN3vox19PriorityBankElementENS0_10SAllocatorIS1_LNS0_10VoxMemHintE0EEEE7reserveEm
+00394ffc  w    F __TEXT,__text __ZNSt6vectorIN3vox19PriorityBankElementENS0_10SAllocatorIS1_LNS0_10VoxMemHintE0EEEEaSERKS5_
+003960b4  w    F __TEXT,__text __ZNSt6vectorIPN3vox10EmitterObjENS0_10SAllocatorIS2_LNS0_10VoxMemHintE0EEEE13_M_insert_auxEN9__gnu_cxx17__normal_iteratorIPS2_S6_EERKS2_
+0039e278  w    F __TEXT,__text __ZNSt6vectorIPN3vox12SegmentGroupENS0_10SAllocatorIS2_LNS0_10VoxMemHintE0EEEE13_M_insert_auxEN9__gnu_cxx17__normal_iteratorIPS2_S6_EERKS2_
+0039e118  w    F __TEXT,__text __ZNSt6vectorIPN3vox15PlaylistElementENS0_10SAllocatorIS2_LNS0_10VoxMemHintE0EEEE13_M_insert_auxEN9__gnu_cxx17__normal_iteratorIPS2_S6_EERKS2_
+0039e3d8  w    F __TEXT,__text __ZNSt6vectorIPN3vox18RandomGroupElementENS0_10SAllocatorIS2_LNS0_10VoxMemHintE0EEEE13_M_insert_auxEN9__gnu_cxx17__normal_iteratorIPS2_S6_EERKS2_
+003a26e4  w    F __TEXT,__text __ZNSt6vectorIS_IN3vox16TransitionParamsENS0_10SAllocatorIS1_LNS0_10VoxMemHintE0EEEENS2_IS5_LS3_0EEEE20_M_allocate_and_copyIN9__gnu_cxx17__normal_iteratorIPKS5_S7_EEEEPS5_mT_SF_
+003a2538  w    F __TEXT,__text __ZNSt6vectorIS_IN3vox16TransitionParamsENS0_10SAllocatorIS1_LNS0_10VoxMemHintE0EEEENS2_IS5_LS3_0EEEE20_M_allocate_and_copyIPS5_EES9_mT_SA_
+003a2a10  w    F __TEXT,__text __ZNSt6vectorIS_IN3vox16TransitionParamsENS0_10SAllocatorIS1_LNS0_10VoxMemHintE0EEEENS2_IS5_LS3_0EEEE7reserveEm
+003a25f8  w    F __TEXT,__text __ZNSt6vectorIS_IN3vox16TransitionParamsENS0_10SAllocatorIS1_LNS0_10VoxMemHintE0EEEENS2_IS5_LS3_0EEEEC1EmRKS5_RKS6_
+003a3b78  w    F __TEXT,__text __ZNSt6vectorIS_IN3vox16TransitionParamsENS0_10SAllocatorIS1_LNS0_10VoxMemHintE0EEEENS2_IS5_LS3_0EEEEaSERKS7_
+003a2950  w    F __TEXT,__text __ZNSt6vectorIS_IiN3vox10SAllocatorIiLNS0_10VoxMemHintE0EEEENS1_IS4_LS2_0EEEE20_M_allocate_and_copyIN9__gnu_cxx17__normal_iteratorIPKS4_S6_EEEEPS4_mT_SE_
+003a27a4  w    F __TEXT,__text __ZNSt6vectorIS_IiN3vox10SAllocatorIiLNS0_10VoxMemHintE0EEEENS1_IS4_LS2_0EEEE20_M_allocate_and_copyIPS4_EES8_mT_S9_
+003a2b10  w    F __TEXT,__text __ZNSt6vectorIS_IiN3vox10SAllocatorIiLNS0_10VoxMemHintE0EEEENS1_IS4_LS2_0EEEE7reserveEm
+003a2864  w    F __TEXT,__text __ZNSt6vectorIS_IiN3vox10SAllocatorIiLNS0_10VoxMemHintE0EEEENS1_IS4_LS2_0EEEEC1EmRKS4_RKS5_
+003a2f2c  w    F __TEXT,__text __ZNSt6vectorIS_IiN3vox10SAllocatorIiLNS0_10VoxMemHintE0EEEENS1_IS4_LS2_0EEEEaSERKS6_
+003a2ca4  w    F __TEXT,__text __ZNSt6vectorIiN3vox10SAllocatorIiLNS0_10VoxMemHintE0EEEE13_M_insert_auxEN9__gnu_cxx17__normal_iteratorIPiS4_EERKi
+003a2e04  w    F __TEXT,__text __ZNSt6vectorIiN3vox10SAllocatorIiLNS0_10VoxMemHintE0EEEEaSERKS4_
+0039b548  w    F __TEXT,__text __ZNSt8_Rb_treeISbIcSt11char_traitsIcEN3vox10SAllocatorIcLNS2_10VoxMemHintE0EEEESt4pairIKS6_NS2_13SZipFileEntryEESt10_Select1stISA_ENS2_10StringCompENS3_ISA_LS4_0EEEE14_M_create_nodeERKSA_
+0039b864  w    F __TEXT,__text __ZNSt8_Rb_treeISbIcSt11char_traitsIcEN3vox10SAllocatorIcLNS2_10VoxMemHintE0EEEESt4pairIKS6_NS2_13SZipFileEntryEESt10_Select1stISA_ENS2_10StringCompENS3_ISA_LS4_0EEEE16_M_insert_uniqueERKSA_
+0039bb18  w    F __TEXT,__text __ZNSt8_Rb_treeISbIcSt11char_traitsIcEN3vox10SAllocatorIcLNS2_10VoxMemHintE0EEEESt4pairIKS6_NS2_13SZipFileEntryEESt10_Select1stISA_ENS2_10StringCompENS3_ISA_LS4_0EEEE16_M_insert_uniqueESt17_Rb_tree_iteratorISA_ERKSA_
+0039b500  w    F __TEXT,__text __ZNSt8_Rb_treeISbIcSt11char_traitsIcEN3vox10SAllocatorIcLNS2_10VoxMemHintE0EEEESt4pairIKS6_NS2_13SZipFileEntryEESt10_Select1stISA_ENS2_10StringCompENS3_ISA_LS4_0EEEE8_M_eraseEPSt13_Rb_tree_nodeISA_E
+003a328c  w    F __TEXT,__text __ZNSt8_Rb_treeISbIcSt11char_traitsIcEN3vox10SAllocatorIcLNS2_10VoxMemHintE0EEEESt4pairIKS6_iESt10_Select1stIS9_ENS2_13StringCompareENS3_IS9_LS4_0EEEE16_M_insert_uniqueERKS9_
+003a3404  w    F __TEXT,__text __ZNSt8_Rb_treeISbIcSt11char_traitsIcEN3vox10SAllocatorIcLNS2_10VoxMemHintE0EEEESt4pairIKS6_iESt10_Select1stIS9_ENS2_13StringCompareENS3_IS9_LS4_0EEEE16_M_insert_uniqueESt17_Rb_tree_iteratorIS9_ERKS9_
+003a2c10  w    F __TEXT,__text __ZNSt8_Rb_treeISbIcSt11char_traitsIcEN3vox10SAllocatorIcLNS2_10VoxMemHintE0EEEESt4pairIKS6_iESt10_Select1stIS9_ENS2_13StringCompareENS3_IS9_LS4_0EEEE8_M_eraseEPSt13_Rb_tree_nodeIS9_E
+003a31a4  w    F __TEXT,__text __ZNSt8_Rb_treeISbIcSt11char_traitsIcEN3vox10SAllocatorIcLNS2_10VoxMemHintE0EEEESt4pairIKS6_iESt10_Select1stIS9_ENS2_13StringCompareENS3_IS9_LS4_0EEEE9_M_insertEPSt18_Rb_tree_node_baseSG_RKS9_
+003959cc  w    F __TEXT,__text __ZNSt8_Rb_treeIxSt4pairIKxPN3vox9HandlableEESt10_Select1stIS5_ENS2_18HandleIdCompStructENS2_10SAllocatorIS5_LNS2_10VoxMemHintE0EEEE16_M_insert_uniqueERKS5_
+00395bf0  w    F __TEXT,__text __ZNSt8_Rb_treeIxSt4pairIKxPN3vox9HandlableEESt10_Select1stIS5_ENS2_18HandleIdCompStructENS2_10SAllocatorIS5_LNS2_10VoxMemHintE0EEEE16_M_insert_uniqueESt17_Rb_tree_iteratorIS5_ERKS5_
+003958b4  w    F __TEXT,__text __ZNSt8_Rb_treeIxSt4pairIKxPN3vox9HandlableEESt10_Select1stIS5_ENS2_18HandleIdCompStructENS2_10SAllocatorIS5_LNS2_10VoxMemHintE0EEEE8_M_eraseEPSt13_Rb_tree_nodeIS5_E
+00394c50  w    F __TEXT,__text __ZSt22__uninitialized_copy_aIPN3vox12PriorityBankES2_NS0_10SAllocatorIS1_LNS0_10VoxMemHintE0EEEET0_T_S7_S6_T1_
+003fe218  w    O __DATA,__data __ZTIN3vox12SegmentGroupE
+003fe1f8  w    O __DATA,__data __ZTIN3vox15DriverInterfaceE
+003fe178  w    O __DATA,__data __ZTIN3vox15StreamInterfaceE
+003fe168  w    O __DATA,__data __ZTIN3vox16DecoderInterfaceE
+003fe140  w    O __DATA,__data __ZTIN3vox18VoxMSWavSubDecoderE
+003fe1e8  w    O __DATA,__data __ZTIN3vox21DriverSourceInterfaceE
+003fe180  w    O __DATA,__data __ZTIN3vox21StreamCursorInterfaceE
+003fe158  w    O __DATA,__data __ZTIN3vox22DecoderCursorInterfaceE
+003fe188  w    O __DATA,__data __ZTIN3vox6HandleE
+003fe1a8  w    O __DATA,__data __ZTIN3vox7DataObjE
+003fcd98  w    O __DATA,__data __ZTIN6gllive17GLXPlayerObserverE
+003fcd84  w    O __DATA,__data __ZTIN6gllive23GLXPlayerSocketObserverE
+003d89a3  w    O __TEXT,__const __ZTSN3vox12SegmentGroupE
+003d898b  w    O __TEXT,__const __ZTSN3vox15DriverInterfaceE
+003d8904  w    O __TEXT,__const __ZTSN3vox15StreamInterfaceE
+003d88eb  w    O __TEXT,__const __ZTSN3vox16DecoderInterfaceE
+003d8452  w    O __TEXT,__const __ZTSN3vox18VoxMSWavSubDecoderE
+003d896d  w    O __TEXT,__const __ZTSN3vox21DriverSourceInterfaceE
+003d891c  w    O __TEXT,__const __ZTSN3vox21StreamCursorInterfaceE
+003d88cc  w    O __TEXT,__const __ZTSN3vox22DecoderCursorInterfaceE
+003d8950  w    O __TEXT,__const __ZTSN3vox6HandleE
+003d895e  w    O __TEXT,__const __ZTSN3vox7DataObjE
+003d543f  w    O __TEXT,__const __ZTSN6gllive17GLXPlayerObserverE
+003d541c  w    O __TEXT,__const __ZTSN6gllive23GLXPlayerSocketObserverE
+003fe200  w    O __DATA,__data __ZTVN3vox12SegmentGroupE
+003fe190  w    O __DATA,__data __ZTVN3vox7DataObjE
+00001000 g       *ABS* __mh_execute_header
+00000000         *UND* _ABAddressBookCopyArrayOfAllPeople
+00000000         *UND* _ABAddressBookCreate
+00000000         *UND* _ABMultiValueAddValueAndLabel
+00000000         *UND* _ABMultiValueCopyValueAtIndex
+00000000         *UND* _ABMultiValueCreateMutable
+00000000         *UND* _ABMultiValueGetCount
+00000000         *UND* _ABPersonComparePeopleByName
+00000000         *UND* _ABPersonCreate
+00000000         *UND* _ABPersonGetSortOrdering
+00000000         *UND* _ABRecordCopyValue
+00000000         *UND* _ABRecordSetValue
+00000000         *UND* _AudioComponentFindNext
+00000000         *UND* _AudioComponentInstanceDispose
+00000000         *UND* _AudioComponentInstanceNew
+00000000         *UND* _AudioOutputUnitStart
+00000000         *UND* _AudioOutputUnitStop
+00000000         *UND* _AudioSessionInitialize
+00000000         *UND* _AudioSessionSetActive
+00000000         *UND* _AudioSessionSetProperty
+00000000         *UND* _AudioUnitInitialize
+00000000         *UND* _AudioUnitSetProperty
+00000000         *UND* _AudioUnitUninitialize
+00000000  w      *UND* _CCCrypt
+00000000  w      *UND* _CC_MD5
+00000000         *UND* _CFAllocatorGetDefault
+00000000         *UND* _CFArrayCreateMutable
+00000000         *UND* _CFBundleCopyBundleURL
+00000000         *UND* _CFBundleGetMainBundle
+00000000         *UND* _CFBundleGetVersionNumber
+00000000         *UND* _CFRelease
+00000000         *UND* _CFRunLoopRunInMode
+00000000         *UND* _CFStringGetCString
+00000000         *UND* _CFURLCopyFileSystemPath
+00000000         *UND* _CGAffineTransformConcat
+00000000         *UND* _CGAffineTransformIdentity
+00000000         *UND* _CGAffineTransformMakeRotation
+00000000         *UND* _CGAffineTransformMakeScale
+00000000         *UND* _CGAffineTransformScale
+00000000         *UND* _CGColorSpaceCreateDeviceRGB
+00000000         *UND* _CGColorSpaceRelease
+00000000         *UND* _CGContextAddArcToPoint
+00000000         *UND* _CGContextAddRect
+00000000         *UND* _CGContextBeginPath
+00000000         *UND* _CGContextClosePath
+00000000         *UND* _CGContextDrawImage
+00000000         *UND* _CGContextFillPath
+00000000         *UND* _CGContextFillRect
+00000000         *UND* _CGContextMoveToPoint
+00000000         *UND* _CGContextRestoreGState
+00000000         *UND* _CGContextSaveGState
+00000000         *UND* _CGContextScaleCTM
+00000000         *UND* _CGContextSetFillColor
+00000000         *UND* _CGContextSetLineWidth
+00000000         *UND* _CGContextSetRGBFillColor
+00000000         *UND* _CGContextSetStrokeColor
+00000000         *UND* _CGContextSetStrokeColorSpace
+00000000         *UND* _CGContextStrokeLineSegments
+00000000         *UND* _CGContextTranslateCTM
+00000000         *UND* _CGImageGetHeight
+00000000         *UND* _CGImageGetWidth
+00000000         *UND* _CGRectGetHeight
+00000000         *UND* _CGRectGetMinX
+00000000         *UND* _CGRectGetMinY
+00000000         *UND* _CGRectGetWidth
+00000000         *UND* _CGRectInset
+00000000         *UND* _CGRectIsEmpty
+00000000         *UND* _CGRectOffset
+00000000         *UND* _CGRectZero
+00000000  w      *UND* _MPMediaItemPropertyAlbumTitle
+00000000  w      *UND* _MPMediaItemPropertyArtist
+00000000  w      *UND* _MPMediaItemPropertyPersistentID
+00000000  w      *UND* _MPMediaItemPropertyPlaybackDuration
+00000000  w      *UND* _MPMediaItemPropertyTitle
+00000000  w      *UND* _MPMediaLibraryDidChangeNotification
+00000000  w      *UND* _MPMediaPlaylistPropertyName
+00000000  w      *UND* _MPMoviePlayerContentPreloadDidFinishNotification
+00000000  w      *UND* _MPMoviePlayerLoadStateDidChangeNotification
+00000000  w      *UND* _MPMoviePlayerPlaybackDidFinishNotification
+00000000  w      *UND* _MPMoviePlayerPlaybackStateDidChangeNotification
+00000000  w      *UND* _MPMusicPlayerControllerNowPlayingItemDidChangeNotification
+00000000  w      *UND* _MPMusicPlayerControllerPlaybackStateDidChangeNotification
+00000000  w      *UND* _NSClassFromString
+00000000  w      *UND* _NSHTTPCookieDomain
+00000000  w      *UND* _NSHTTPCookieName
+00000000  w      *UND* _NSHTTPCookiePath
+00000000  w      *UND* _NSHTTPCookieValue
+00000000  w      *UND* _NSHomeDirectory
+00000000         *UND* _NSLocaleCountryCode
+00000000  w      *UND* _NSLocalizedDescriptionKey
+00000000  w      *UND* _NSLog
+00000000  w      *UND* _NSSearchPathForDirectoriesInDomains
+00000000         *UND* _OBJC_CLASS_$_CAEAGLLayer
+00000000         *UND* _OBJC_CLASS_$_CAMediaTimingFunction
+00000000         *UND* _OBJC_CLASS_$_CATransition
+00000000         *UND* _OBJC_CLASS_$_EAGLContext
+00000000  w      *UND* _OBJC_CLASS_$_MPMediaItemCollection
+00000000  w      *UND* _OBJC_CLASS_$_MPMediaLibrary
+00000000  w      *UND* _OBJC_CLASS_$_MPMediaQuery
+00000000  w      *UND* _OBJC_CLASS_$_MPMoviePlayerController
+00000000  w      *UND* _OBJC_CLASS_$_MPMoviePlayerViewController
+00000000  w      *UND* _OBJC_CLASS_$_MPMusicPlayerController
+00000000         *UND* _OBJC_CLASS_$_NSArray
+00000000  w      *UND* _OBJC_CLASS_$_NSAssertionHandler
+00000000  w      *UND* _OBJC_CLASS_$_NSAutoreleasePool
+00000000  w      *UND* _OBJC_CLASS_$_NSBundle
+00000000  w      *UND* _OBJC_CLASS_$_NSCharacterSet
+00000000         *UND* _OBJC_CLASS_$_NSData
+00000000         *UND* _OBJC_CLASS_$_NSDate
+00000000  w      *UND* _OBJC_CLASS_$_NSDateFormatter
+00000000         *UND* _OBJC_CLASS_$_NSDictionary
+00000000  w      *UND* _OBJC_CLASS_$_NSError
+00000000  w      *UND* _OBJC_CLASS_$_NSFileManager
+00000000  w      *UND* _OBJC_CLASS_$_NSHTTPCookie
+00000000  w      *UND* _OBJC_CLASS_$_NSHTTPCookieStorage
+00000000         *UND* _OBJC_CLASS_$_NSLocale
+00000000         *UND* _OBJC_CLASS_$_NSMutableArray
+00000000         *UND* _OBJC_CLASS_$_NSMutableData
+00000000         *UND* _OBJC_CLASS_$_NSMutableDictionary
+00000000  w      *UND* _OBJC_CLASS_$_NSMutableString
+00000000  w      *UND* _OBJC_CLASS_$_NSMutableURLRequest
+00000000  w      *UND* _OBJC_CLASS_$_NSNotificationCenter
+00000000         *UND* _OBJC_CLASS_$_NSNull
+00000000  w      *UND* _OBJC_CLASS_$_NSNumber
+00000000         *UND* _OBJC_CLASS_$_NSObject
+00000000  w      *UND* _OBJC_CLASS_$_NSScanner
+00000000  w      *UND* _OBJC_CLASS_$_NSString
+00000000  w      *UND* _OBJC_CLASS_$_NSThread
+00000000         *UND* _OBJC_CLASS_$_NSTimer
+00000000  w      *UND* _OBJC_CLASS_$_NSURL
+00000000  w      *UND* _OBJC_CLASS_$_NSURLCache
+00000000  w      *UND* _OBJC_CLASS_$_NSURLConnection
+00000000  w      *UND* _OBJC_CLASS_$_NSURLRequest
+00000000         *UND* _OBJC_CLASS_$_NSUserDefaults
+00000000  w      *UND* _OBJC_CLASS_$_NSXMLParser
+00000000         *UND* _OBJC_CLASS_$_UIAccelerometer
+00000000         *UND* _OBJC_CLASS_$_UIActionSheet
+00000000         *UND* _OBJC_CLASS_$_UIActivityIndicatorView
+00000000         *UND* _OBJC_CLASS_$_UIAlertView
+00000000         *UND* _OBJC_CLASS_$_UIApplication
+00000000         *UND* _OBJC_CLASS_$_UIBarButtonItem
+00000000         *UND* _OBJC_CLASS_$_UIButton
+00000000         *UND* _OBJC_CLASS_$_UIColor
+00000000         *UND* _OBJC_CLASS_$_UIControl
+00000000         *UND* _OBJC_CLASS_$_UIDevice
+00000000         *UND* _OBJC_CLASS_$_UIFont
+00000000         *UND* _OBJC_CLASS_$_UIImage
+00000000         *UND* _OBJC_CLASS_$_UIImagePickerController
+00000000         *UND* _OBJC_CLASS_$_UIImageView
+00000000         *UND* _OBJC_CLASS_$_UILabel
+00000000         *UND* _OBJC_CLASS_$_UINavigationBar
+00000000         *UND* _OBJC_CLASS_$_UIScreen
+00000000         *UND* _OBJC_CLASS_$_UIScrollView
+00000000         *UND* _OBJC_CLASS_$_UISearchBar
+00000000         *UND* _OBJC_CLASS_$_UITableView
+00000000         *UND* _OBJC_CLASS_$_UITableViewCell
+00000000         *UND* _OBJC_CLASS_$_UITableViewController
+00000000         *UND* _OBJC_CLASS_$_UITextField
+00000000         *UND* _OBJC_CLASS_$_UITextView
+00000000         *UND* _OBJC_CLASS_$_UIView
+00000000         *UND* _OBJC_CLASS_$_UIViewController
+00000000         *UND* _OBJC_CLASS_$_UIWebView
+00000000         *UND* _OBJC_CLASS_$_UIWindow
+00000000         *UND* _OBJC_EHTYPE_$_NSException
+00000000         *UND* _OBJC_EHTYPE_id
+00000000  w      *UND* _OBJC_METACLASS_$_MPMoviePlayerViewController
+00000000         *UND* _OBJC_METACLASS_$_NSObject
+00000000         *UND* _OBJC_METACLASS_$_UIControl
+00000000         *UND* _OBJC_METACLASS_$_UIScrollView
+00000000         *UND* _OBJC_METACLASS_$_UITableViewController
+00000000         *UND* _OBJC_METACLASS_$_UITextView
+00000000         *UND* _OBJC_METACLASS_$_UIView
+00000000         *UND* _OBJC_METACLASS_$_UIViewController
+00000000         *UND* _SCNetworkReachabilityCreateWithName
+00000000         *UND* _SCNetworkReachabilityGetFlags
+00000000         *UND* _UIApplicationMain
+00000000         *UND* _UIEdgeInsetsZero
+00000000         *UND* _UIGraphicsBeginImageContext
+00000000         *UND* _UIGraphicsEndImageContext
+00000000         *UND* _UIGraphicsGetCurrentContext
+00000000         *UND* _UIGraphicsGetImageFromCurrentImageContext
+00000000         *UND* _UIImagePNGRepresentation
+00000000         *UND* _UIKeyboardDidHideNotification
+00000000         *UND* _UIKeyboardDidShowNotification
+00000000         *UND* _UIKeyboardWillHideNotification
+00000000         *UND* _UIKeyboardWillShowNotification
+00000000         *UND* _UITextFieldTextDidChangeNotification
+00000000         *UND* __Unwind_SjLj_Register
+00000000         *UND* __Unwind_SjLj_Resume
+00000000         *UND* __Unwind_SjLj_Unregister
+00000000         *UND* __ZNKSbIwSt11char_traitsIwESaIwEE5c_strEv
+00000000         *UND* __ZNKSs4dataEv
+00000000         *UND* __ZNKSs4findEPKcm
+00000000         *UND* __ZNKSs4sizeEv
+00000000         *UND* __ZNKSs5c_strEv
+00000000         *UND* __ZNKSs5emptyEv
+00000000         *UND* __ZNKSs6lengthEv
+00000000         *UND* __ZNKSs6substrEmm
+00000000         *UND* __ZNKSs7compareEPKc
+00000000         *UND* __ZNKSs7compareERKSs
+00000000         *UND* __ZNKSt19basic_ostringstreamIcSt11char_traitsIcESaIcEE3strEv
+00000000         *UND* __ZNSaIcEC1Ev
+00000000         *UND* __ZNSaIcED1Ev
+00000000         *UND* __ZNSaIwEC1Ev
+00000000         *UND* __ZNSaIwED1Ev
+00000000         *UND* __ZNSbIwSt11char_traitsIwESaIwEEC1EPKwRKS1_
+00000000         *UND* __ZNSbIwSt11char_traitsIwESaIwEED1Ev
+00000000         *UND* __ZNSolsEPFRSt8ios_baseS0_E
+00000000         *UND* __ZNSolsEi
+00000000         *UND* __ZNSs12_Alloc_hiderC1EPcRKSaIcE
+00000000         *UND* __ZNSs12_S_empty_repEv
+00000000         *UND* __ZNSs13_S_copy_charsEPcPKcS1_
+00000000         *UND* __ZNSs4_Rep10_M_destroyERKSaIcE
+00000000         *UND* __ZNSs4_Rep10_M_refdataEv
+00000000         *UND* __ZNSs4_Rep26_M_set_length_and_sharableEm
+00000000         *UND* __ZNSs4_Rep9_S_createEmmRKSaIcE
+00000000         *UND* __ZNSs5clearEv
+00000000         *UND* __ZNSs6appendEPKc
+00000000         *UND* __ZNSs6appendEPKcm
+00000000         *UND* __ZNSs6appendERKSs
+00000000         *UND* __ZNSs6assignEPKc
+00000000         *UND* __ZNSs6resizeEm
+00000000         *UND* __ZNSs7reserveEm
+00000000         *UND* __ZNSsC1EPKcRKSaIcE
+00000000         *UND* __ZNSsC1ERKSs
+00000000         *UND* __ZNSsC1EmcRKSaIcE
+00000000         *UND* __ZNSsC1Ev
+00000000         *UND* __ZNSsD1Ev
+00000000         *UND* __ZNSsaSEPKc
+00000000         *UND* __ZNSsaSERKSs
+00000000         *UND* __ZNSsixEm
+00000000         *UND* __ZNSspLEPKc
+00000000         *UND* __ZNSspLERKSs
+00000000         *UND* __ZNSspLEc
+00000000         *UND* __ZNSt15_List_node_base4hookEPS_
+00000000         *UND* __ZNSt15_List_node_base6unhookEv
+00000000         *UND* __ZNSt19basic_ostringstreamIcSt11char_traitsIcESaIcEEC1ESt13_Ios_Openmode
+00000000         *UND* __ZNSt19basic_ostringstreamIcSt11char_traitsIcESaIcEED1Ev
+00000000         *UND* __ZNSt8ios_base4InitC1Ev
+00000000         *UND* __ZNSt8ios_base4InitD1Ev
+00000000         *UND* __ZSt17__throw_bad_allocv
+00000000         *UND* __ZSt18_Rb_tree_decrementPKSt18_Rb_tree_node_base
+00000000         *UND* __ZSt18_Rb_tree_decrementPSt18_Rb_tree_node_base
+00000000         *UND* __ZSt18_Rb_tree_incrementPKSt18_Rb_tree_node_base
+00000000         *UND* __ZSt18_Rb_tree_incrementPSt18_Rb_tree_node_base
+00000000         *UND* __ZSt19__throw_logic_errorPKc
+00000000         *UND* __ZSt20__throw_length_errorPKc
+00000000         *UND* __ZSt20__throw_out_of_rangePKc
+00000000         *UND* __ZSt28_Rb_tree_rebalance_for_erasePSt18_Rb_tree_node_baseRS_
+00000000         *UND* __ZSt29_Rb_tree_insert_and_rebalancebPSt18_Rb_tree_node_baseS0_RS_
+00000000         *UND* __ZSt9terminatev
+00000000         *UND* __ZStlsISt11char_traitsIcEERSt13basic_ostreamIcT_ES5_PKc
+00000000         *UND* __ZStlsIcSt11char_traitsIcEERSt13basic_ostreamIT_T0_ES6_St5_Setw
+00000000         *UND* __ZStlsIcSt11char_traitsIcEERSt13basic_ostreamIT_T0_ES6_St8_SetfillIS3_E
+00000000         *UND* __ZTVN10__cxxabiv117__class_type_infoE
+00000000         *UND* __ZTVN10__cxxabiv120__si_class_type_infoE
+00000000         *UND* __ZTVN10__cxxabiv121__vmi_class_type_infoE
+00000000         *UND* ___CFConstantStringClassReference
+00000000         *UND* ___assert_rtn
+00000000         *UND* ___cxa_atexit
+00000000         *UND* ___cxa_bad_typeid
+00000000         *UND* ___cxa_begin_catch
+00000000         *UND* ___cxa_end_catch
+00000000         *UND* ___cxa_guard_abort
+00000000         *UND* ___cxa_guard_acquire
+00000000         *UND* ___cxa_guard_release
+00000000         *UND* ___cxa_pure_virtual
+00000000         *UND* ___cxa_rethrow
+00000000         *UND* ___divsi3
+00000000         *UND* ___dynamic_cast
+00000000         *UND* ___error
+00000000         *UND* ___floatundidf
+00000000         *UND* ___gxx_personality_sj0
+00000000         *UND* ___modsi3
+00000000         *UND* ___objc_personality_v0
+00000000         *UND* ___sprintf_chk
+00000000         *UND* ___udivdi3
+00000000         *UND* ___udivsi3
+00000000         *UND* ___umoddi3
+00000000         *UND* ___umodsi3
+00000000         *UND* __objc_empty_cache
+00000000         *UND* __objc_empty_vtable
+00000000         *UND* _accept
+00000000         *UND* _acos
+00000000         *UND* _acosf
+00000000         *UND* _asin
+00000000         *UND* _asinf
+00000000         *UND* _atan
+00000000         *UND* _atan2
+00000000         *UND* _atanf
+00000000         *UND* _atof
+00000000         *UND* _atoi
+00000000         *UND* _bind
+00000000         *UND* _calloc
+00000000         *UND* _ceilf
+00000000         *UND* _chdir
+00000000         *UND* _close
+00000000         *UND* _closedir
+00000000         *UND* _connect
+00000000         *UND* _cos
+00000000         *UND* _cosf
+00000000         *UND* _dlsym
+00000000         *UND* _exit
+00000000         *UND* _exp
+00000000         *UND* _fclose
+00000000         *UND* _fcntl
+00000000         *UND* _floor
+00000000         *UND* _floorf
+00000000         *UND* _fmod
+00000000         *UND* _fmodf
+00000000         *UND* _fopen
+00000000         *UND* _fread
+00000000         *UND* _free
+00000000         *UND* _fseek
+00000000         *UND* _ftell
+00000000         *UND* _fwrite
+00000000         *UND* _getcwd
+00000000         *UND* _gethostbyname
+00000000         *UND* _gethostname
+00000000         *UND* _getsockname
+00000000         *UND* _getsockopt
+00000000         *UND* _gettimeofday
+00000000         *UND* _glActiveTexture
+00000000         *UND* _glAlphaFunc
+00000000         *UND* _glBindBuffer
+00000000         *UND* _glBindFramebufferOES
+00000000         *UND* _glBindRenderbufferOES
+00000000         *UND* _glBindTexture
+00000000         *UND* _glBlendEquationOES
+00000000         *UND* _glBlendFunc
+00000000         *UND* _glBufferData
+00000000         *UND* _glBufferSubData
+00000000         *UND* _glCheckFramebufferStatusOES
+00000000         *UND* _glClear
+00000000         *UND* _glClearColor
+00000000         *UND* _glClearDepthf
+00000000         *UND* _glClientActiveTexture
+00000000         *UND* _glClipPlanef
+00000000         *UND* _glColor4ub
+00000000         *UND* _glColorMask
+00000000         *UND* _glColorPointer
+00000000         *UND* _glCompressedTexImage2D
+00000000         *UND* _glCopyTexImage2D
+00000000         *UND* _glCullFace
+00000000         *UND* _glDeleteBuffers
+00000000         *UND* _glDeleteFramebuffersOES
+00000000         *UND* _glDeleteRenderbuffersOES
+00000000         *UND* _glDeleteTextures
+00000000         *UND* _glDepthFunc
+00000000         *UND* _glDepthMask
+00000000         *UND* _glDepthRangef
+00000000         *UND* _glDisable
+00000000         *UND* _glDisableClientState
+00000000         *UND* _glDrawArrays
+00000000         *UND* _glDrawElements
+00000000         *UND* _glEnable
+00000000         *UND* _glEnableClientState
+00000000         *UND* _glFogf
+00000000         *UND* _glFogfv
+00000000         *UND* _glFramebufferRenderbufferOES
+00000000         *UND* _glFramebufferTexture2DOES
+00000000         *UND* _glFrontFace
+00000000         *UND* _glGenBuffers
+00000000         *UND* _glGenFramebuffersOES
+00000000         *UND* _glGenRenderbuffersOES
+00000000         *UND* _glGenTextures
+00000000         *UND* _glGetBooleanv
+00000000         *UND* _glGetError
+00000000         *UND* _glGetFloatv
+00000000         *UND* _glGetIntegerv
+00000000         *UND* _glGetPointerv
+00000000         *UND* _glGetRenderbufferParameterivOES
+00000000         *UND* _glGetString
+00000000         *UND* _glHint
+00000000         *UND* _glIsEnabled
+00000000         *UND* _glLightModelfv
+00000000         *UND* _glLightf
+00000000         *UND* _glLightfv
+00000000         *UND* _glLineWidth
+00000000         *UND* _glLoadIdentity
+00000000         *UND* _glLoadMatrixf
+00000000         *UND* _glMaterialf
+00000000         *UND* _glMaterialfv
+00000000         *UND* _glMatrixMode
+00000000         *UND* _glMultMatrixf
+00000000         *UND* _glNormal3f
+00000000         *UND* _glNormalPointer
+00000000         *UND* _glPixelStorei
+00000000         *UND* _glPointParameterf
+00000000         *UND* _glPointSize
+00000000         *UND* _glPolygonOffset
+00000000         *UND* _glPopMatrix
+00000000         *UND* _glPushMatrix
+00000000         *UND* _glReadPixels
+00000000         *UND* _glRenderbufferStorageOES
+00000000         *UND* _glScissor
+00000000         *UND* _glShadeModel
+00000000         *UND* _glStencilFunc
+00000000         *UND* _glStencilMask
+00000000         *UND* _glStencilOp
+00000000         *UND* _glTexCoordPointer
+00000000         *UND* _glTexEnvf
+00000000         *UND* _glTexEnvfv
+00000000         *UND* _glTexEnvi
+00000000         *UND* _glTexImage2D
+00000000         *UND* _glTexParameterf
+00000000         *UND* _glTexParameteri
+00000000         *UND* _glTexSubImage2D
+00000000         *UND* _glVertexPointer
+00000000         *UND* _glViewport
+00000000         *UND* _if_nametoindex
+00000000         *UND* _inet_addr
+00000000         *UND* _inet_ntoa
+00000000         *UND* _ioctl
+00000000         *UND* _kABPersonEmailProperty
+00000000         *UND* _kABPersonFirstNameProperty
+00000000         *UND* _kABPersonLastNameProperty
+00000000         *UND* _kABPersonPhoneProperty
+00000000         *UND* _kABWorkLabel
+00000000         *UND* _kCAMediaTimingFunctionEaseInEaseOut
+00000000         *UND* _kCAMediaTimingFunctionEaseOut
+00000000         *UND* _kCAMediaTimingFunctionLinear
+00000000         *UND* _kCATransitionFromBottom
+00000000         *UND* _kCATransitionFromLeft
+00000000         *UND* _kCATransitionFromRight
+00000000         *UND* _kCATransitionFromTop
+00000000         *UND* _kCATransitionMoveIn
+00000000         *UND* _kCATransitionPush
+00000000         *UND* _kCATransitionReveal
+00000000         *UND* _kCFRunLoopDefaultMode
+00000000         *UND* _kCFTypeArrayCallBacks
+00000000         *UND* _kEAGLColorFormatRGB565
+00000000         *UND* _kEAGLDrawablePropertyColorFormat
+00000000         *UND* _kEAGLDrawablePropertyRetainedBacking
+00000000         *UND* _ldexp
+00000000         *UND* _listen
+00000000         *UND* _log
+00000000         *UND* _log10
+00000000         *UND* _logf
+00000000         *UND* _malloc
+00000000         *UND* _memcmp
+00000000         *UND* _memcpy
+00000000         *UND* _memmove
+00000000         *UND* _memset
+00000000         *UND* _memset_pattern16
+00000000         *UND* _nanosleep
+00000000         *UND* _objc_begin_catch
+00000000         *UND* _objc_copyStruct
+00000000         *UND* _objc_end_catch
+00000000         *UND* _objc_enumerationMutation
+00000000         *UND* _objc_msgSend
+00000000         *UND* _objc_msgSendSuper2
+00000000         *UND* _objc_msgSend_stret
+00000000         *UND* _objc_setProperty
+00000000         *UND* _objc_sync_enter
+00000000         *UND* _objc_sync_exit
+00000000         *UND* _opendir
+00000000         *UND* _perror
+00000000         *UND* _pow
+00000000         *UND* _printf
+00000000         *UND* _pthread_cancel
+00000000         *UND* _pthread_create
+00000000         *UND* _pthread_join
+00000000         *UND* _pthread_mutex_destroy
+00000000         *UND* _pthread_mutex_init
+00000000         *UND* _pthread_mutex_lock
+00000000         *UND* _pthread_mutex_trylock
+00000000         *UND* _pthread_mutex_unlock
+00000000         *UND* _pthread_setcanceltype
+00000000         *UND* _pthread_testcancel
+00000000         *UND* _puts
+00000000         *UND* _qsort
+00000000         *UND* _rand
+00000000         *UND* _readdir
+00000000         *UND* _realpath$DARWIN_EXTSN
+00000000         *UND* _recv
+00000000         *UND* _recvfrom
+00000000         *UND* _remove
+00000000         *UND* _sched_yield
+00000000         *UND* _select
+00000000         *UND* _send
+00000000         *UND* _sendto
+00000000         *UND* _setsockopt
+00000000         *UND* _sigaction
+00000000         *UND* _sin
+00000000         *UND* _sinf
+00000000         *UND* _snprintf
+00000000         *UND* _socket
+00000000         *UND* _sprintf
+00000000         *UND* _sqrtf
+00000000         *UND* _srand
+00000000         *UND* _sscanf
+00000000         *UND* _stat
+00000000         *UND* _strcasecmp
+00000000         *UND* _strcat
+00000000         *UND* _strchr
+00000000         *UND* _strcmp
+00000000         *UND* _strcpy
+00000000         *UND* _strlcpy
+00000000         *UND* _strlen
+00000000         *UND* _strncmp
+00000000         *UND* _strncpy
+00000000         *UND* _strpbrk
+00000000         *UND* _strrchr
+00000000         *UND* _strstr
+00000000         *UND* _sysctl
+00000000         *UND* _sysctlbyname
+00000000         *UND* _system
+00000000         *UND* _tan
+00000000         *UND* _tanf
+00000000         *UND* _uname
+00000000         *UND* _usleep
+00000000         *UND* _vsprintf
+00000000         *UND* _wcscmp
+00000000         *UND* _wcscpy
+00000000         *UND* _wcslen
+00000000         *UND* dyld_stub_binder

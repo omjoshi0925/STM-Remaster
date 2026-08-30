@@ -151,3 +151,30 @@ Get this on the device and tell me what you see. The three things most likely to
 need a fix are the shader compiling at all, the model yaw offset, and camera
 framing — all small, and all much easier to settle from one screenshot than from
 more analysis here.
+
+## Milestone 5 — Full Level 1, baked lighting, living enemies (2026-08-29)
+
+**Engine (host-verified, 4 suites green):**
+- `LevelRoom::loadFullLevel` auto-discovers every room scene: all of level 1
+  loads as 93,273 verts / 29,439 tris in uint16-safe visual batches, with
+  merged collision (3,180 tris) and navmesh (332 tris).
+- Per-vertex colour decoding (ubyte4 attribute) — the level's baked night
+  lighting, 300+ distinct colours.
+- Enemy roster from the original scenes: 78 placements parsed with type + yaw;
+  33/34 ground placements land on the merged navmesh (cross-validation).
+- Thug archetypes (bat, knife, molotov + gun/hammer/big mappings) load, bind
+  100% of animation channels, and pass humanoid-proportion checks;
+  `skinnedAnchor` grounds clips authored at scene offsets (thug idle floats at
+  Z≈319 in file space).
+- Hero free-roam across the merged level: 5,988 units, 0 off-navmesh frames,
+  reaches an original checkpoint by straight-line steering.
+
+**Renderer (compiles against the same sources; not yet visually confirmed):**
+- Vertex-lit level batches (uchar4 colour in a 36-byte static vertex,
+  layout-verified), far plane extended for full-level scale.
+- Up to 40 idle-animating thugs at original spawn points with per-instance
+  bone-buffer slots and phase-offset idles, textured from the original packs.
+
+**Format doc:** image/effect/material libraries decoded; texture-binding open
+question documented with evidence; config tables inventoried (combat/AI are
+data). **Fixed:** enemy clip scene-offset grounding; visual batch splitting.

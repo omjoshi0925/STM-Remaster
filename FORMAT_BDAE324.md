@@ -183,3 +183,84 @@ spans X 5320..23034, Y −20530..−2331.
 The rig's forward axis is **−Y**: at the bind pose `Bip01_L_Foot` is at
 y = +4.95 and `Bip01_L_Toe0` at y = −8.30. A yaw of 0 meaning "facing +X"
 therefore needs a +90° model correction.
+
+---
+
+## Milestone 5 additions
+
+### Image / effect / material libraries (root table +52..+72)
+
+**Image entry, 20-byte stride** (`root+52` count, `root+56` ptr):
+`{char* filename, char* id, char* sourcePath, u32, u32}` — e.g.
+`{"_0_window_build.tga", "_0_window_build_tga", "../textures/20_window_build.tga"}`.
+Note the *filename* and the *sourcePath basename* can differ; disk files match
+the filename field. Duplicate names get a numeric suffix on the id
+(`_8_window_build.tga1`).
+
+**Effect record, 92-byte stride** (`root+60/+64`):
+`{char* id "<name>-fx", char* name, 0, param*, flag, param*, flag, param*, flag,
+param*, flag, ?, param*, float, ?, param*, float, ...}` — six parameter slots
+(ambient, diffuse, specular, emission, plus two scalar pairs). Each `param*`
+points at either a 4-byte ARGB colour cell (flag 0) or a **36-byte texture
+record** (flag 1): `{u32 1, ptr->self+8 (runtime sampler cell), 0,
+char* "CHANNEL1", 0, 0, 0, float uScale, float vScale}`.
+
+**Material record, 40/64-byte stride** (`root+68/+72`):
+`{char* id, char* name, 0, char* "#<effect-id>" url, 0×4, u32 argbTint, u32}`.
+Submesh +4 carries the material *name*; resolution is
+submesh → material → `#`-url → effect.
+
+### Open question: effect→image binding
+
+The texture record carries **no image reference at rest** — across all 23
+level-1 geometry files, every textured effect's 36-byte record is byte-identical
+except the self-pointer; the sampler cell it points to is zero on disk and the
+image table is referenced from nowhere except the root table (verified by
+scanning every relocated word). The original engine evidently resolves surfaces
+to images at load time in code (`CTextureManager` in the ARMv7 binary). Until
+that resolution rule is recovered (binary analysis of the armv7 slice is the
+next tool), level geometry renders vertex-lit untextured. Character meshes are
+unaffected: they carry 1–2 images and the loader binds `textureNames.front()`,
+which is visually confirmed correct for Spider-Man.
+
+### Submesh bytes +12..+23
+
+Twelve single-byte stage descriptors (0xff = unused). Observed values 0–3
+across 1,165 level submeshes and a value of 2 on Spider-Man's single submesh
+(which has only 2 images), so these are **not image indices**; they look like
+UV-set / stage assignments. Diffuse texture identity does *not* live here.
+
+### Per-vertex colours
+
+Level geometry's 24-byte layout is `pos(0) colour(20,ubyte4) uv(12)` — attribute
+type 1 = ubyte4. The colours are real baked lighting (300+ distinct values in
+level 1, dark red/purple night palette), not padding. Character layouts carry
+no colour attribute.
+
+### Animation clips are authored at scene offsets
+
+Enemy clips keep the world offset of their source Max scene: thug `idle` poses
+the whole skeleton at Z≈319, Y≈70. Placement must therefore subtract a
+**skinned anchor** — XY centroid + min Z of the skinned vertices at clip start
+(`bdae::skinnedAnchor`). Spider-Man's `idle_stand` happens to sit near the
+origin, which is why this only surfaced with enemies.
+
+### Rig sharing
+
+`thug_knife_mesh` ships no animation file; it shares `thug_bat`'s 26-node rig
+and all 26 of `thug_bat_anim`'s channels bind to it (verified). The molotov rig
+is separate (24 channels, all bind to its own anim file).
+
+### Config tables (configs.pack) — the gameplay layer is data
+
+First u32 = record count, then fixed-stride records with inline strings:
+`MC_STATE.bin` 131 main-character states (incl. `k_state_move_onwall`,
+`k_state_move_climb_wall`, four `jump_wall_*` states);
+`EnemysAttributeConfigs.bin` 25 enemy stat rows (THUG_*, RHINO, ELECTRO,
+SYM_ZOMBIE_*); `EnemysAttackConfigs.bin` 85 attacks with hit classes
+(LIGHT/NORMAL/FLOAT/STUN/BLOW); `BehaviorAnimMapList.bin` 239 behaviour→clip
+mappings; plus `BehaviorState`, `AttackIntervalTimeConfigs`, `QTE_ACTIONS`,
+`MC_SOUND`, `MCHitEffects`, `VoxSounds`, `LevelRank`. Combat/AI are therefore
+largely decodable tables, not hardcoded logic. The `GS_*.json` files are not
+valid JSON (Gameloft text format). `!ScriptFile` attributes in `.irr` scenes
+point at `cinematics/*.cff`, not scripts.
