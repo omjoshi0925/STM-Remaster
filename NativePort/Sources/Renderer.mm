@@ -9,6 +9,7 @@
 #include "Level.hpp"
 #include "Character.hpp"
 #include "Combat.hpp"
+#include "UIKitData.hpp"
 #include <memory>
 #include <cmath>
 #include <cstring>
@@ -150,6 +151,26 @@ vertex Out staticV(const device StaticV *a [[buffer(0)]],
     return o;
 }
 
+struct SpriteV { packed_float2 p; packed_float2 uv; uchar4 tint; };   // 20 B, fully packed
+struct SpriteOut { float4 p [[position]]; float2 uv; float4 tint; };
+vertex SpriteOut spriteV(const device SpriteV *a [[buffer(0)]],
+                         constant float2 &vp     [[buffer(1)]],
+                         uint i                  [[vertex_id]]) {
+    SpriteV v = a[i];
+    SpriteOut o;
+    float2 ndc = float2(v.p) / vp * 2.0 - 1.0;
+    o.p = float4(ndc.x, -ndc.y, 0.0, 1.0);           // top-left pixel origin
+    o.uv = float2(v.uv);
+    o.tint = float4(v.tint) / 255.0;
+    return o;
+}
+fragment half4 spriteF(SpriteOut i             [[stage_in]],
+                       texture2d<half> t       [[texture(0)]],
+                       sampler s               [[sampler(0)]]) {
+    half4 c = t.sample(s, i.uv);
+    return c * half4(i.tint);
+}
+
 fragment half4 frag(Out i                   [[stage_in]],
                     texture2d<half> t       [[texture(0)]],
                     sampler s               [[sampler(0)]],
@@ -191,6 +212,15 @@ fragment half4 frag(Out i                   [[stage_in]],
     std::vector<bdae::EnemyActor> _foes;      // combat sim, aligned with _npcs
     bdae::HeroCombat _fists;
     float _heroHP;
+
+    // Milestone 7: original HUD sprites
+    bdae::BSprite _ui;
+    id<MTLTexture> _uiAtlas;
+    id<MTLRenderPipelineState> _spritePipe;
+    id<MTLDepthStencilState> _noDepth;
+    id<MTLBuffer> _spriteVB;
+    int _modStickBase, _modStickPuck, _modButton, _modBarFrame;
+    BOOL _showAtlasSheet, _paused;
     id<MTLBuffer> _npcBones;
 
     std::unique_ptr<Model> _hero;
@@ -246,6 +276,24 @@ fragment half4 frag(Out i                   [[stage_in]],
     sd.colorAttachments[0].pixelFormat = view.colorPixelFormat;
     sd.depthAttachmentPixelFormat = view.depthStencilPixelFormat;
     _staticPipe = [_device newRenderPipelineStateWithDescriptor:sd error:&error];
+
+    MTLRenderPipelineDescriptor *ud = [MTLRenderPipelineDescriptor new];
+    ud.vertexFunction = [lib newFunctionWithName:@"spriteV"];
+    ud.fragmentFunction = [lib newFunctionWithName:@"spriteF"];
+    ud.colorAttachments[0].pixelFormat = view.colorPixelFormat;
+    ud.colorAttachments[0].blendingEnabled = YES;
+    ud.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
+    ud.colorAttachments[0].destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+    ud.colorAttachments[0].sourceAlphaBlendFactor = MTLBlendFactorSourceAlpha;
+    ud.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+    ud.depthAttachmentPixelFormat = view.depthStencilPixelFormat;
+    _spritePipe = [_device newRenderPipelineStateWithDescriptor:ud error:&error];
+    MTLDepthStencilDescriptor *nd = [MTLDepthStencilDescriptor new];
+    nd.depthCompareFunction = MTLCompareFunctionAlways;
+    nd.depthWriteEnabled = NO;
+    _noDepth = [_device newDepthStencilStateWithDescriptor:nd];
+    _spriteVB = [_device newBufferWithLength:kFramesInFlight * 512 * 6 * 20
+                                     options:MTLResourceStorageModeShared];
     if (!_staticPipe) NSLog(@"[TotalMayhem] static pipeline failed: %@", error);
 
     MTLDepthStencilDescriptor *dd = [MTLDepthStencilDescriptor new];
@@ -326,6 +374,32 @@ fragment half4 frag(Out i                   [[stage_in]],
     if (_heroReady) _fists.bind(*_hero);
     [self loadEnemiesFromLevel:assetRoot];
 
+    // Original HUD atlas (sprites.pack). Missing assets degrade gracefully.
+    _modStickBase = _modStickPuck = _modButton = _modBarFrame = -1;
+    {
+        std::string uerr;
+        if (_ui.load(assetRoot + "/sprites/interface.bsprite", uerr)) {
+            NSString *ap = [NSString stringWithFormat:@"%s/sprites/interface.tga", assetRoot.c_str()];
+            _uiAtlas = LoadPVRTC(_device, ap);
+            // Best-guess module roles by shape until visually mapped:
+            int bestSq = -1, bestPuck = -1, bestBtn = -1, bestBar = -1;
+            for (int i = 0; i < (int)_ui.modules.size(); ++i) {
+                const bdae::SpriteModule &m = _ui.modules[i];
+                int dw = abs((int)m.w - (int)m.h);
+                if (dw < 10 && m.w >= 110 && (bestSq < 0 || m.w > _ui.modules[bestSq].w)) bestSq = i;
+                if (dw < 8 && m.w >= 36 && m.w <= 60 && bestPuck < 0) bestPuck = i;
+                if (dw < 8 && m.w >= 44 && m.w <= 72 && bestBtn < 0) bestBtn = i;
+                if (m.w >= 3 * m.h && m.w >= 60 && bestBar < 0) bestBar = i;
+            }
+            _modStickBase = bestSq; _modStickPuck = bestPuck;
+            _modButton = bestBtn; _modBarFrame = bestBar;
+            NSLog(@"[TotalMayhem] HUD atlas: %zu modules; guesses base=%d puck=%d button=%d bar=%d",
+                  _ui.modules.size(), bestSq, bestPuck, bestBtn, bestBar);
+        } else {
+            NSLog(@"[TotalMayhem] HUD sprites not found (%s) - run the sprites extraction step", uerr.c_str());
+        }
+    }
+
     _actor = std::make_unique<Character>();
     if (_heroReady && animReady) {
         _actor->bind(_hero.get(), _levelReady ? _room.get() : nullptr);
@@ -368,14 +442,15 @@ fragment half4 frag(Out i                   [[stage_in]],
     float rightX = cosf(_camYaw), rightY = -sinf(_camYaw);
     float moveX = rightX * _stickX + fwdX * _stickY;
     float moveY = rightY * _stickX + fwdY * _stickY;
-    if (_actor) _actor->update(dt, moveX, moveY);
+    if (_paused) dt = 0;
+    if (_actor && !_paused) _actor->update(dt, moveX, moveY);
 
     // -------- combat simulation (Milestone 6) --------
     uint32_t nowMs = (uint32_t)(now * 1000.0);
     uint32_t dtMs = (uint32_t)(dt * 1000.0f);
     Vec3 heroPos = _actor ? _actor->position() : Vec3{0, 0, 0};
     for (bdae::EnemyActor &f : _foes)
-        if (f.update(nowMs, dtMs, heroPos) && _heroHP > 0)
+        if (!_paused && f.update(nowMs, dtMs, heroPos) && _heroHP > 0)
             _heroHP = fmaxf(0.0f, _heroHP - 5.0f);   // per-attack damage table not decoded yet
     _fists.update(nowMs, heroPos, _actor ? _actor->yaw() : 0.0f, _foes);
     if (_heroReady) {
@@ -462,10 +537,97 @@ fragment half4 frag(Out i                   [[stage_in]],
                  indexBufferOffset:0];
     }
 
+    [self drawHUD:enc view:view];
+
     [enc endEncoding];
     [cb presentDrawable:drawable];
     [cb commit];
     ++_frameIdx;
+}
+
+// -------------------------------------------------------------------- HUD ---
+struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
+
+- (void)drawHUD:(id<MTLRenderCommandEncoder>)enc view:(MTKView *)view {
+    if (!_spritePipe || !_uiAtlas || _ui.modules.empty()) return;
+    float W = (float)view.drawableSize.width, H = (float)view.drawableSize.height;
+    float sc = H / 768.0f;   // reference layout height
+
+    std::vector<SpriteVert> verts;
+    verts.reserve(6 * 96);
+    auto quad = [&](float x, float y, float w, float h, const bdae::SpriteModule &m,
+                    uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
+        float u0 = m.x / 512.0f, v0 = m.y / 512.0f;
+        float u1 = (m.x + m.w) / 512.0f, v1 = (m.y + m.h) / 512.0f;
+        SpriteVert q[6] = {
+            {{x, y},         {u0, v0}, {r, g, b, a}},
+            {{x + w, y},     {u1, v0}, {r, g, b, a}},
+            {{x + w, y + h}, {u1, v1}, {r, g, b, a}},
+            {{x, y},         {u0, v0}, {r, g, b, a}},
+            {{x + w, y + h}, {u1, v1}, {r, g, b, a}},
+            {{x, y + h},     {u0, v1}, {r, g, b, a}},
+        };
+        verts.insert(verts.end(), q, q + 6);
+    };
+    auto mod = [&](int i) -> const bdae::SpriteModule & { return _ui.modules[i]; };
+
+    if (_showAtlasSheet) {
+        // Contact sheet: every module in index order, 8 per row, for mapping.
+        float pad = 6 * sc, cx = pad, cy = pad, rowH = 0;
+        for (int i = 0; i < (int)_ui.modules.size(); ++i) {
+            const bdae::SpriteModule &m = mod(i);
+            float w = m.w * sc, h = m.h * sc;
+            if (cx + w > W - pad) { cx = pad; cy += rowH + pad; rowH = 0; }
+            quad(cx, cy, w, h, m, 255, 255, 255, 255);
+            cx += w + pad; rowH = fmaxf(rowH, h);
+        }
+    } else {
+        // health bar (top-left): frame module + tinted fill scaled by HP
+        if (_modBarFrame >= 0) {
+            const bdae::SpriteModule &bar = mod(_modBarFrame);
+            float bw = 3.2f * bar.w * sc, bh = 3.2f * bar.h * sc;
+            quad(80 * sc, 28 * sc, bw * fmaxf(0.02f, _heroHP / 100.0f), bh,
+                 bar, 90, 230, 60, 255);
+            quad(80 * sc, 28 * sc, bw, bh, bar, 255, 255, 255, 90);
+        }
+        // pause square (top-left corner; also the atlas-sheet toggle zone)
+        if (_modButton >= 0)
+            quad(14 * sc, 14 * sc, 52 * sc, 52 * sc, mod(_modButton),
+                 255, 255, 255, _paused ? 255 : 170);
+        // virtual stick while touching
+        if (_moveTouchActive > 0 && _modStickBase >= 0) {
+            float R = 96 * sc;
+            float bx = (float)_moveOriginX * (W / fmaxf(1.0f, (float)UIScreen.mainScreen.bounds.size.width));
+            float by = (float)_moveOriginY * (H / fmaxf(1.0f, (float)UIScreen.mainScreen.bounds.size.height));
+            quad(bx - R, by - R, 2 * R, 2 * R, mod(_modStickBase), 255, 255, 255, 150);
+            if (_modStickPuck >= 0) {
+                float r2 = 34 * sc;
+                quad(bx + _stickX * R * 0.7f - r2, by - _stickY * R * 0.7f - r2,
+                     2 * r2, 2 * r2, mod(_modStickPuck), 255, 255, 255, 220);
+            }
+        }
+        // action buttons bottom-right: punch (active) + two stubs
+        if (_modButton >= 0) {
+            float bs = 108 * sc;
+            quad(W - 1.4f * bs, H - 2.6f * bs, bs, bs, mod(_modButton), 255, 90, 80, 230);
+            quad(W - 2.6f * bs, H - 1.5f * bs, bs, bs, mod(_modButton), 255, 90, 80, 230);
+            quad(W - 1.3f * bs, H - 1.3f * bs, bs, bs, mod(_modButton), 160, 160, 160, 140);
+        }
+    }
+    if (verts.empty()) return;
+    NSUInteger bytes = verts.size() * sizeof(SpriteVert);
+    NSUInteger cap = 512 * 6 * 20;
+    if (bytes > cap) { verts.resize(cap / sizeof(SpriteVert)); bytes = cap; }
+    NSUInteger off = (_frameIdx % kFramesInFlight) * cap;
+    memcpy((uint8_t *)_spriteVB.contents + off, verts.data(), bytes);
+    simd_float2 vpsz = {W, H};
+    [enc setRenderPipelineState:_spritePipe];
+    [enc setDepthStencilState:_noDepth];
+    [enc setVertexBuffer:_spriteVB offset:off atIndex:0];
+    [enc setVertexBytes:&vpsz length:sizeof(vpsz) atIndex:1];
+    [enc setFragmentTexture:_uiAtlas atIndex:0];
+    [enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:verts.size()];
+    [enc setDepthStencilState:_depth];
 }
 
 // ---------------------------------------------------------------- enemies ---
@@ -621,7 +783,17 @@ fragment half4 frag(Out i                   [[stage_in]],
 // ------------------------------------------------------------------ input ---
 - (void)touchBegin:(CGPoint)p {
     
-    CGFloat half = UIScreen.mainScreen.bounds.size.width * 0.5;
+    CGFloat sw = UIScreen.mainScreen.bounds.size.width;
+    CGFloat sh = UIScreen.mainScreen.bounds.size.height;
+    // top-left corner: single tap = pause, double-height zone toggles atlas sheet
+    if (p.x < 70 && p.y < 70) { _paused = !_paused; return; }
+    if (p.x < 70 && p.y > 70 && p.y < 140) { _showAtlasSheet = !_showAtlasSheet; return; }
+    // bottom-right action zone = punch (matches the drawn buttons)
+    if (p.x > sw * 0.72 && p.y > sh * 0.55) {
+        _fists.tryPunch((uint32_t)(CACurrentMediaTime() * 1000.0));
+        return;
+    }
+    CGFloat half = sw * 0.5;
     if (p.x < half && _moveTouchActive < 0) {
         _moveTouchActive = 1;
         _moveOriginX = p.x;
