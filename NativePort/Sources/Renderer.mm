@@ -5,10 +5,10 @@
 #import "Renderer.h"
 #import <UIKit/UIKit.h>
 #import <QuartzCore/QuartzCore.h>
-#include "GameRuntime.hpp"
 #include "BDAEModel.hpp"
 #include "Level.hpp"
 #include "Character.hpp"
+#include "Combat.hpp"
 #include <memory>
 #include <cmath>
 #include <cstring>
@@ -25,6 +25,8 @@ using namespace bdae;
 static const float kModelYawOffset = (float)M_PI_2;
 
 static const NSUInteger kMaxBones = 38;
+static const NSUInteger kBoneSlot = 2560;      // 40 bones * 64 B, 256-aligned
+static const NSUInteger kFramesInFlight = 3;   // bone buffers are rewritten per frame
 
 struct GPUSkinVertex { float p[3]; float n[3]; float uv[2]; uint16_t bone[4]; float w[4]; };
 struct GPUStaticVertex { float p[3]; float n[3]; float uv[2]; uint8_t c[4]; };
@@ -107,7 +109,7 @@ static const char *const kShaderSource = R"(
 using namespace metal;
 
 struct SkinV   { packed_float3 p; packed_float3 n; float2 uv; ushort4 b; packed_float4 w; };
-struct StaticV { packed_float3 p; packed_float3 n; float2 uv; uchar4 c; };
+struct StaticV { packed_float3 p; packed_float3 n; packed_float2 uv; uchar4 c; };  // fully packed: sizeof==36, matches CPU
 struct U       { float4x4 vp; float4x4 model; float4 tint; float4 misc; };
 struct Out     { float4 p [[position]]; float2 uv; float l; float3 vc; };
 
@@ -186,9 +188,11 @@ fragment half4 frag(Out i                   [[stage_in]],
     std::vector<bdae::Vec3> _npcAnchor;
     struct NPCInst { int type; float x, y, z, yaw, phase; };
     std::vector<NPCInst> _npcs;
+    std::vector<bdae::EnemyActor> _foes;      // combat sim, aligned with _npcs
+    bdae::HeroCombat _fists;
+    float _heroHP;
     id<MTLBuffer> _npcBones;
 
-    std::unique_ptr<GameRuntime> _game;
     std::unique_ptr<Model> _hero;
     std::unique_ptr<LevelRoom> _room;
     std::unique_ptr<Character> _actor;
@@ -200,6 +204,10 @@ fragment half4 frag(Out i                   [[stage_in]],
     float _moveOriginX, _moveOriginY;
     float _lookLastX, _lookLastY;
     NSInteger _moveTouchActive, _lookTouchActive;
+    NSUInteger _frameIdx;
+    dispatch_semaphore_t _inFlight;
+    CFTimeInterval _moveDownT;
+    float _moveMaxLen;
     BOOL _heroReady, _levelReady;
 }
 @end
@@ -213,7 +221,6 @@ fragment half4 frag(Out i                   [[stage_in]],
     _device = MTLCreateSystemDefaultDevice();
     _queue = [_device newCommandQueue];
     _label = label;
-    _game = std::make_unique<GameRuntime>();
 
     view.device = _device;
     view.colorPixelFormat = MTLPixelFormatBGRA8Unorm;
@@ -253,7 +260,6 @@ fragment half4 frag(Out i                   [[stage_in]],
     _white = MakeWhite(_device);
 
     NSString *root = NSBundle.mainBundle.resourcePath;
-    _game->boot(root.UTF8String);
 
     std::string assetRoot = std::string(root.UTF8String) + "/Assets";
     std::string err, heroErr, animErr, levelErr;
@@ -284,7 +290,7 @@ fragment half4 frag(Out i                   [[stage_in]],
                                        length:m.indices.size() * sizeof(uint16_t)
                                       options:MTLResourceStorageModeShared];
         _heroIndexCount = m.indices.size();
-        _boneBuf = [_device newBufferWithLength:kMaxBones * sizeof(simd_float4x4)
+        _boneBuf = [_device newBufferWithLength:kFramesInFlight * kBoneSlot
                                         options:MTLResourceStorageModeShared];
         if (!_hero->textureNames.empty()) {
             NSString *tp = [root stringByAppendingPathComponent:
@@ -317,6 +323,7 @@ fragment half4 frag(Out i                   [[stage_in]],
         }
     }
 
+    if (_heroReady) _fists.bind(*_hero);
     [self loadEnemiesFromLevel:assetRoot];
 
     _actor = std::make_unique<Character>();
@@ -329,6 +336,9 @@ fragment half4 frag(Out i                   [[stage_in]],
     _camPitch = 0.30f;
     _camDist = 430.0f;
     _moveTouchActive = -1;
+    _heroHP = 100.0f;
+    _frameIdx = 0;
+    _inFlight = dispatch_semaphore_create(kFramesInFlight);
     _lookTouchActive = -1;
     _last = CACurrentMediaTime();
 
@@ -351,14 +361,33 @@ fragment half4 frag(Out i                   [[stage_in]],
     CFTimeInterval now = CACurrentMediaTime();
     float dt = (float)fmin(0.05, now - _last);
     _last = now;
-    _game->update(dt);
 
     // Stick input is camera-relative: +Y on the stick walks away from the camera.
-    float fwdX = -sinf(_camYaw), fwdY = -cosf(_camYaw);
+    // Camera forward (eye->target) is (+sin(yaw), +cos(yaw)).
+    float fwdX = sinf(_camYaw), fwdY = cosf(_camYaw);
     float rightX = cosf(_camYaw), rightY = -sinf(_camYaw);
     float moveX = rightX * _stickX + fwdX * _stickY;
     float moveY = rightY * _stickX + fwdY * _stickY;
     if (_actor) _actor->update(dt, moveX, moveY);
+
+    // -------- combat simulation (Milestone 6) --------
+    uint32_t nowMs = (uint32_t)(now * 1000.0);
+    uint32_t dtMs = (uint32_t)(dt * 1000.0f);
+    Vec3 heroPos = _actor ? _actor->position() : Vec3{0, 0, 0};
+    for (bdae::EnemyActor &f : _foes)
+        if (f.update(nowMs, dtMs, heroPos) && _heroHP > 0)
+            _heroHP = fmaxf(0.0f, _heroHP - 5.0f);   // per-attack damage table not decoded yet
+    _fists.update(nowMs, heroPos, _actor ? _actor->yaw() : 0.0f, _foes);
+    if (_heroReady) {
+        const Clip *oc; uint32_t otl;
+        if (_fists.poseInfo(nowMs, oc, otl)) _hero->poseAtTime(otl);   // punch overrides locomotion
+    }
+    if (_frameIdx % 30 == 0 && _levelReady) {
+        int alive = 0; for (auto &f : _foes) if (f.alive()) ++alive;
+        _label.text = [NSString stringWithFormat:
+            @"HP %.0f   enemies %d/%zu alive\nLEFT drag = move  tap = punch  RIGHT drag = camera",
+            _heroHP, alive, _foes.size()];
+    }
 
     id<CAMetalDrawable> drawable = view.currentDrawable;
     MTLRenderPassDescriptor *pass = view.currentRenderPassDescriptor;
@@ -366,7 +395,10 @@ fragment half4 frag(Out i                   [[stage_in]],
     pass.colorAttachments[0].clearColor = MTLClearColorMake(0.07, 0.09, 0.13, 1.0);
     pass.depthAttachment.clearDepth = 1.0;
 
+    dispatch_semaphore_wait(_inFlight, DISPATCH_TIME_FOREVER);   // bone buffers ahead
     id<MTLCommandBuffer> cb = [_queue commandBuffer];
+    __block dispatch_semaphore_t doneSem = _inFlight;
+    [cb addCompletedHandler:^(id<MTLCommandBuffer> b) { dispatch_semaphore_signal(doneSem); }];
     id<MTLRenderCommandEncoder> enc = [cb renderCommandEncoderWithDescriptor:pass];
     [enc setDepthStencilState:_depth];
     [enc setCullMode:MTLCullModeNone];
@@ -406,7 +438,8 @@ fragment half4 frag(Out i                   [[stage_in]],
 
     if (_heroReady && _heroIndexCount) {
         const std::vector<Mat4> &sk = _hero->skinningMatrices();
-        simd_float4x4 *dst = (simd_float4x4 *)_boneBuf.contents;
+        NSUInteger boneOff = (_frameIdx % kFramesInFlight) * kBoneSlot;
+        simd_float4x4 *dst = (simd_float4x4 *)((uint8_t *)_boneBuf.contents + boneOff);
         NSUInteger n = MIN((NSUInteger)sk.size(), kMaxBones);
         for (NSUInteger i = 0; i < kMaxBones; ++i) dst[i] = (i < n) ? ToSimd(sk[i]) : MIdent();
 
@@ -419,7 +452,7 @@ fragment half4 frag(Out i                   [[stage_in]],
         [enc setRenderPipelineState:_skinPipe];
         [enc setVertexBuffer:_heroVB offset:0 atIndex:0];
         [enc setVertexBytes:&u length:sizeof(u) atIndex:1];
-        [enc setVertexBuffer:_boneBuf offset:0 atIndex:2];
+        [enc setVertexBuffer:_boneBuf offset:boneOff atIndex:2];
         [enc setFragmentTexture:(_heroTex ? _heroTex : _white) atIndex:0];
         [enc setFragmentBytes:&u length:sizeof(u) atIndex:1];
         [enc drawIndexedPrimitives:MTLPrimitiveTypeTriangle
@@ -432,6 +465,7 @@ fragment half4 frag(Out i                   [[stage_in]],
     [enc endEncoding];
     [cb presentDrawable:drawable];
     [cb commit];
+    ++_frameIdx;
 }
 
 // ---------------------------------------------------------------- enemies ---
@@ -453,9 +487,17 @@ fragment half4 frag(Out i                   [[stage_in]],
         {"RangeThug_hammer",     "thug_hammer_mesh.bdae",  "thug_hammer_anim.bdae"},
         {"RangeThug_big",        "thug_big_mesh.bdae",     "thug_big_anim.bdae"},
     };
+    std::string statErr;
+    std::map<std::string, bdae::EnemyStats> statTable =
+        bdae::loadEnemyStats(assetRoot + "/configs", statErr);
+    if (!statErr.empty()) NSLog(@"[TotalMayhem] enemy stats: %s", statErr.c_str());
+    static const std::map<std::string, std::string> kStatName = {
+        {"MeleeThugEnemy_bat", "THUG_BAT"},   {"MeleeThugEnemy_knife", "THUG_KNIFE"},
+        {"RangeThug_molotov", "THUG_MOLOTOV"},{"MeleeThug_gun", "THUG_GUN"},
+        {"RangeThug_hammer", "THUG_HAMMER"},  {"RangeThug_big", "THUG_BIG"}};
     std::map<std::string, int> typeIndex;
     const NSUInteger kMaxNPC = 40;
-    const NSUInteger kSlot = 2560;   // 40 bones * 64B, 256-aligned
+    const NSUInteger kSlot = kBoneSlot;
 
     for (const LevelRoom::EnemySpawn &en : _room->enemies) {
         if (_npcs.size() >= kMaxNPC) break;
@@ -521,9 +563,15 @@ fragment half4 frag(Out i                   [[stage_in]],
         if (_room->canStandAt(en.pos.x, en.pos.y, z)) gz = z;
         _npcs.push_back({ti, en.pos.x, en.pos.y, gz, en.yaw,
                          (float)((_npcs.size() * 977) % 4000)});
+        bdae::EnemyStats st;
+        auto sn = kStatName.find(arch->prefix);
+        if (sn != kStatName.end() && statTable.count(sn->second)) st = statTable[sn->second];
+        _foes.emplace_back();
+        _foes.back().bind(_npcModel[ti].get(), _room.get(), st,
+                          en.pos.x, en.pos.y, gz, en.yaw);
     }
     if (!_npcs.empty())
-        _npcBones = [_device newBufferWithLength:_npcs.size() * kSlot
+        _npcBones = [_device newBufferWithLength:kFramesInFlight * _npcs.size() * kSlot
                                          options:MTLResourceStorageModeShared];
     NSLog(@"[TotalMayhem] enemies placed: %zu of %zu parsed spawns (%zu archetypes)",
           _npcs.size(), _room->enemies.size(), _npcModel.size());
@@ -531,15 +579,17 @@ fragment half4 frag(Out i                   [[stage_in]],
 
 - (void)drawEnemies:(id<MTLRenderCommandEncoder>)enc vp:(simd_float4x4)vp time:(CFTimeInterval)now {
     if (_npcs.empty() || !_npcBones) return;
-    const NSUInteger kSlot = 2560;
-    uint8_t *base = (uint8_t *)_npcBones.contents;
+    const NSUInteger kSlot = kBoneSlot;
+    const NSUInteger regionOff = (_frameIdx % kFramesInFlight) * _npcs.size() * kSlot;
+    uint8_t *base = (uint8_t *)_npcBones.contents + regionOff;
     [enc setRenderPipelineState:_skinPipe];
+    uint32_t nowMs = (uint32_t)(now * 1000.0);
     for (size_t i = 0; i < _npcs.size(); ++i) {
         const NPCInst &n = _npcs[i];
         Model &m = *_npcModel[n.type];
-        const Clip *idle = _npcIdle[n.type];
-        uint32_t len = idle->endMs - idle->startMs;
-        uint32_t t = idle->startMs + (len ? (uint32_t)((uint64_t)(now * 1000.0 + n.phase) % len) : 0);
+        const Clip *clip = nullptr; uint32_t t = 0;
+        if (i < _foes.size()) _foes[i].poseInfo(nowMs + (uint32_t)n.phase, clip, t);
+        if (!clip) { const Clip *idle = _npcIdle[n.type]; clip = idle; t = idle->startMs; }
         m.poseAtTime(t);
         const std::vector<Mat4> &sk = m.skinningMatrices();
         simd_float4x4 *dst = (simd_float4x4 *)(base + i * kSlot);
@@ -547,15 +597,17 @@ fragment half4 frag(Out i                   [[stage_in]],
         for (NSUInteger k = 0; k < nb; ++k) dst[k] = ToSimd(sk[k]);
 
         const Vec3 &a = _npcAnchor[n.type];
+        float ex = n.x, ey = n.y, ez = n.z, eyaw = n.yaw;
+        if (i < _foes.size()) { ex = _foes[i].x; ey = _foes[i].y; ez = _foes[i].z; eyaw = _foes[i].yaw; }
         Uniforms u;
         u.vp = vp;
-        u.model = simd_mul(simd_mul(MTranslate(n.x, n.y, n.z), MRotZ(n.yaw + kModelYawOffset)),
+        u.model = simd_mul(simd_mul(MTranslate(ex, ey, ez), MRotZ(eyaw + kModelYawOffset)),
                            MTranslate(-a.x, -a.y, -a.z));
         u.tint = (simd_float4){1, 1, 1, 1};
         u.misc = (simd_float4){[_npcTexs objectAtIndex:n.type] != _white ? 1.0f : 0.0f, 0, 0, 0};
         [enc setVertexBuffer:_npcVBs[n.type] offset:0 atIndex:0];
         [enc setVertexBytes:&u length:sizeof(u) atIndex:1];
-        [enc setVertexBuffer:_npcBones offset:i * kSlot atIndex:2];
+        [enc setVertexBuffer:_npcBones offset:regionOff + i * kSlot atIndex:2];
         [enc setFragmentTexture:_npcTexs[n.type] atIndex:0];
         [enc setFragmentBytes:&u length:sizeof(u) atIndex:1];
         [enc drawIndexedPrimitives:MTLPrimitiveTypeTriangle
@@ -568,13 +620,15 @@ fragment half4 frag(Out i                   [[stage_in]],
 
 // ------------------------------------------------------------------ input ---
 - (void)touchBegin:(CGPoint)p {
-    _game->touchBegin(p.x, p.y);
+    
     CGFloat half = UIScreen.mainScreen.bounds.size.width * 0.5;
     if (p.x < half && _moveTouchActive < 0) {
         _moveTouchActive = 1;
         _moveOriginX = p.x;
         _moveOriginY = p.y;
         _stickX = _stickY = 0;
+        _moveDownT = CACurrentMediaTime();
+        _moveMaxLen = 0;
     } else {
         _lookTouchActive = 1;
         _lookLastX = p.x;
@@ -583,7 +637,7 @@ fragment half4 frag(Out i                   [[stage_in]],
 }
 
 - (void)touchMove:(CGPoint)p {
-    _game->touchMove(p.x, p.y);
+    
     CGFloat half = UIScreen.mainScreen.bounds.size.width * 0.5;
     if (p.x < half && _moveTouchActive > 0) {
         const float radius = 70.0f;
@@ -593,6 +647,7 @@ fragment half4 frag(Out i                   [[stage_in]],
         if (len > 1.0f) { dx /= len; dy /= len; }
         _stickX = dx;
         _stickY = dy;
+        if (len > _moveMaxLen) _moveMaxLen = len;
     } else if (_lookTouchActive > 0) {
         _camYaw -= ((float)p.x - _lookLastX) * 0.009f;
         _camPitch = fmaxf(-0.10f, fminf(0.85f, _camPitch - ((float)p.y - _lookLastY) * 0.006f));
@@ -602,13 +657,18 @@ fragment half4 frag(Out i                   [[stage_in]],
 }
 
 - (void)touchEnd:(CGPoint)p {
-    _game->touchEnd(p.x, p.y);
+    
     CGFloat half = UIScreen.mainScreen.bounds.size.width * 0.5;
-    if (p.x < half) { _moveTouchActive = -1; _stickX = _stickY = 0; }
+    if (p.x < half) {
+        // A quick, near-stationary touch on the move side is a punch.
+        if (CACurrentMediaTime() - _moveDownT < 0.30 && _moveMaxLen < 0.25)
+            _fists.tryPunch((uint32_t)(CACurrentMediaTime() * 1000.0));
+        _moveTouchActive = -1; _stickX = _stickY = 0;
+    }
     else            { _lookTouchActive = -1; }
 }
 
-- (void)accelerometerX:(float)x y:(float)y z:(float)z { _game->accelerometer(x, y, z); }
+- (void)accelerometerX:(float)x y:(float)y z:(float)z { }
 - (void)mtkView:(MTKView *)view drawableSizeWillChange:(CGSize)size {}
 
 @end
