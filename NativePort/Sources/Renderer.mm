@@ -5,6 +5,7 @@
 #import "Renderer.h"
 #import <UIKit/UIKit.h>
 #import <QuartzCore/QuartzCore.h>
+#import <AVFoundation/AVFoundation.h>
 #include "BDAEModel.hpp"
 #include "Level.hpp"
 #include "Character.hpp"
@@ -72,6 +73,7 @@ static simd_float4x4 MLookAt(simd_float3 eye, simd_float3 target, simd_float3 up
     m.columns[3] = (simd_float4){-simd_dot(x, eye), -simd_dot(y, eye), -simd_dot(z, eye), 1};
     return m;
 }
+static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, float z, float &sx, float &sy);
 static simd_float4x4 ToSimd(const Mat4 &m) {
     simd_float4x4 o;
     for (int c = 0; c < 4; ++c)
@@ -322,11 +324,32 @@ fragment half4 frag(Out i                   [[stage_in]],
     id<MTLTexture> _paperTex;
     UILabel *_flowLabel;
     UILabel *_skipLabel;
+    MTKView *_mtkView;
+    AVPlayer *_video;
+    AVPlayerLayer *_videoLayer;
+    NSMutableArray<NSString *> *_bootVideos;
+    NSUInteger _videoIndex;
+    BOOL _bootPlayed;
+    float _fpsEma;
     id<MTLTexture> _comicTex;
     int _comicLoadedPage;
     NSMutableArray<id<MTLBuffer>> *_skyVBs, *_skyIBs;
     NSMutableArray<id<MTLTexture>> *_skyTex;
     std::vector<NSUInteger> _skyCounts;
+
+    // Milestone 12: world props, bonuses, sense, score
+    NSMutableArray<id<MTLBuffer>> *_propVBs, *_propIBs;
+    NSMutableArray<id<MTLTexture>> *_propTex;
+    std::vector<NSUInteger> _propCounts;
+    std::vector<int> _propBatchArch;           // archetype index per GPU batch
+    std::vector<int> _propAlphaTest;
+    struct PropInst { int arch; simd_float4x4 model; float x, y, z; bool alive; bool destructible; };
+    std::vector<PropInst> _props;
+    std::vector<bool> _bonusTaken;
+    std::vector<std::pair<int, int>> _propRanges;
+    int _score;
+    simd_float4x4 _lastVP;
+    float _lastW, _lastH;
     id<MTLBuffer> _npcBones;
 
     std::unique_ptr<Model> _hero;
@@ -489,6 +512,7 @@ fragment half4 frag(Out i                   [[stage_in]],
         NSString *pp = [NSString stringWithFormat:@"%s/sprites/paper_title9.tga", assetRoot.c_str()];
         _paperTex = LoadPVRTC(_device, pp);
     }
+    _mtkView = view;
     _flowLabel = [[UILabel alloc] initWithFrame:view.bounds];
     _flowLabel.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     _flowLabel.textAlignment = NSTextAlignmentCenter;
@@ -506,6 +530,7 @@ fragment half4 frag(Out i                   [[stage_in]],
     _skipLabel.text = @"SKIP";
     _skipLabel.hidden = YES;
     [view addSubview:_skipLabel];
+    [self startBootVideos];
 
     _actor = std::make_unique<Character>();
     if (_heroReady && animReady) {
@@ -549,6 +574,7 @@ fragment half4 frag(Out i                   [[stage_in]],
     float rightX = cosf(_camYaw), rightY = -sinf(_camYaw);
     float moveX = rightX * _stickX + fwdX * _stickY;
     float moveY = rightY * _stickX + fwdY * _stickY;
+    if (dt > 0.0001f) _fpsEma = _fpsEma > 0 ? (_fpsEma * 0.9f + (1.0f / dt) * 0.1f) : (1.0f / dt);
     if (_flow.phase == bdae::GameFlow::COMIC) {
         uint32_t cms = (uint32_t)(now * 1000.0);
         if (cms - _flow.comicPageStartMs > 5200) _flow.advanceComic(cms);
@@ -565,7 +591,22 @@ fragment half4 frag(Out i                   [[stage_in]],
         if (playing && f.update(nowMs, dtMs, heroPos) && _heroHP > 0)
             _heroHP = fmaxf(0.0f, _heroHP - 5.0f);   // per-attack damage table not decoded yet
     if (playing) {
-        _fists.update(nowMs, heroPos, _actor ? _actor->yaw() : 0.0f, _foes);
+        int hits = _fists.update(nowMs, heroPos, _actor ? _actor->yaw() : 0.0f, _foes);
+        _score += hits * 10;
+        if (_fists.justStruck && _actor) {
+            float fx = cosf(_actor->yaw()), fy = sinf(_actor->yaw());
+            for (PropInst &p : _props) {
+                if (!p.alive || !p.destructible) continue;
+                float dx = p.x - heroPos.x, dy = p.y - heroPos.y, d = sqrtf(dx * dx + dy * dy);
+                if (d < 240.0f && (d < 1.0f || (dx * fx + dy * fy) / d > 0.2f)) { p.alive = false; _score += 50; }
+            }
+        }
+        for (size_t i = 0; i < _bonusTaken.size(); ++i) {
+            if (_bonusTaken[i]) continue;
+            const Vec3 &b = _room->bonuses[i];
+            float dx = b.x - heroPos.x, dy = b.y - heroPos.y;
+            if (dx * dx + dy * dy < 150.0f * 150.0f && fabsf(b.z - heroPos.z) < 300.0f) { _bonusTaken[i] = true; _score += 25; }
+        }
         if (_heroHP <= 0) _flow.onDeath(nowMs);
         else _flow.updatePlaying(heroPos, nowMs);
     }
@@ -576,15 +617,17 @@ fragment half4 frag(Out i                   [[stage_in]],
     if (_frameIdx % 30 == 0 && _levelReady) {
         int alive = 0; for (auto &f : _foes) if (f.alive()) ++alive;
         _label.text = [NSString stringWithFormat:
-            @"HP %.0f   enemies %d/%zu   checkpoints %d/%zu\nLEFT drag = move  tap = punch  RIGHT drag = camera",
-            _heroHP, alive, _foes.size(), _flow.visitedCount(), _flow.checkpointsAll.size()];
+            @"HP %.0f   score %d   enemies %d/%zu   checkpoints %d/%zu   %.0f fps%@\nLEFT drag = move  tap = punch  RIGHT drag = camera",
+            _heroHP, _score, alive, _foes.size(), _flow.visitedCount(), _flow.checkpointsAll.size(),
+            _fpsEma, _paused ? @"  PAUSED" : @""];
         NSString *gn = [NSString stringWithUTF8String:
             _strings.get("STR_GAME_NAME", "SPIDER-MAN: TOTAL MAYHEM").c_str()];
         NSString *lvName = [NSString stringWithUTF8String:
             _strings.get("STR_LEVELNEW_" + std::to_string(_flow.levelIndex + 1) + "_NAME",
                          "LEVEL " + std::to_string(_flow.levelIndex + 1)).c_str()];
-        _skipLabel.hidden = (_flow.phase != bdae::GameFlow::COMIC);
+        _skipLabel.hidden = !(_flow.phase == bdae::GameFlow::COMIC || _flow.phase == bdae::GameFlow::VIDEO);
         switch (_flow.phase) {
+            case bdae::GameFlow::VIDEO:
             case bdae::GameFlow::COMIC:
                 _flowLabel.text = @""; break;
             case bdae::GameFlow::TITLE:
@@ -667,6 +710,8 @@ fragment half4 frag(Out i                   [[stage_in]],
         }
     }
 
+    [self drawProps:enc vp:vp eye:eye];
+    _lastVP = vp; _lastW = (float)view.drawableSize.width; _lastH = (float)view.drawableSize.height;
     [self drawEnemies:enc vp:vp time:now];
 
     if (_heroReady && _heroIndexCount) {
@@ -760,6 +805,24 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
                 float r2 = 48 * sc;
                 quad(bx + _stickX * R * 0.7f - r2, by - _stickY * R * 0.7f - r2, 2 * r2, 2 * r2, kPuck, 255, 255, 255, 235);
             }
+            // spider-sense: a pulsing red ring over every enemy that has noticed you
+            float pulse = 0.55f + 0.45f * sinf((float)CACurrentMediaTime() * 6.0f);
+            for (const bdae::EnemyActor &f : _foes) {
+                if (!f.alive() || f.state == bdae::EnemyActor::IDLE) continue;
+                float sx, sy;
+                if (!WorldToScreen(_lastVP, W, H, f.x, f.y, f.z + 200.0f, sx, sy)) continue;
+                float rr = (34 + 10 * pulse) * sc;
+                quad(sx - rr, sy - rr, 2 * rr, 2 * rr, kButton, 255, 60, 40, (uint8_t)(120 + 100 * pulse));
+            }
+            // bonus pickups: floating spider tokens at the original Bonus positions
+            for (size_t i = 0; i < _bonusTaken.size(); ++i) {
+                if (_bonusTaken[i]) continue;
+                const Vec3 &b = _room->bonuses[i];
+                float sx, sy;
+                if (!WorldToScreen(_lastVP, W, H, b.x, b.y, b.z + 60.0f + 15.0f * sinf((float)CACurrentMediaTime() * 3.0f + i), sx, sy)) continue;
+                float rr = 22 * sc;
+                quad(sx - rr, sy - rr, 2 * rr, 2 * rr, kPortrait, 255, 255, 255, 235);
+            }
             // action buttons bottom-right: punch, jump/dodge (stub), web (stub)
             float bs = 116 * sc;
             quad(W - 3.05f * bs, H - 2.35f * bs, bs, bs, kButton, 255, 255, 255, 240);
@@ -816,6 +879,159 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
         [enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:hudCount];
     }
     [enc setDepthStencilState:_depth];
+}
+
+// ------------------------------------------------------------ boot videos ---
+// The original boots into Gameloft-Logo.m4v then Spiderman-Trailer.m4v (the
+// comic-art motion piece), both skippable. Files live in Assets/videos/.
+- (void)startBootVideos {
+    if (_bootPlayed) return;
+    _bootPlayed = YES;
+    _bootVideos = [NSMutableArray new];
+    NSString *root = [NSString stringWithUTF8String:_assetRootStr.c_str()];
+    for (NSString *n in @[@"Gameloft-Logo.m4v", @"Spiderman-Trailer.m4v"]) {
+        NSString *p = [NSString stringWithFormat:@"%@/videos/%@", root, n];
+        if ([NSFileManager.defaultManager fileExistsAtPath:p]) [_bootVideos addObject:p];
+    }
+    NSLog(@"[TotalMayhem] boot videos found: %lu", (unsigned long)_bootVideos.count);
+    if (!_bootVideos.count) return;
+    _videoIndex = 0;
+    _flow.phase = bdae::GameFlow::VIDEO;
+    [self playVideoAtIndex:0];
+}
+
+- (void)playVideoAtIndex:(NSUInteger)i {
+    [self stopVideo];
+    if (i >= _bootVideos.count) { _flow.showTitle((uint32_t)(CACurrentMediaTime() * 1000.0)); return; }
+    _videoIndex = i;
+    AVPlayerItem *item = [AVPlayerItem playerItemWithURL:[NSURL fileURLWithPath:_bootVideos[i]]];
+    _video = [AVPlayer playerWithPlayerItem:item];
+    _videoLayer = [AVPlayerLayer playerLayerWithPlayer:_video];
+    _videoLayer.frame = _mtkView.bounds;
+    _videoLayer.videoGravity = AVLayerVideoGravityResizeAspect;
+    _videoLayer.backgroundColor = UIColor.blackColor.CGColor;
+    [_mtkView.layer addSublayer:_videoLayer];
+    [_mtkView bringSubviewToFront:_skipLabel];
+    __weak typeof(self) weakSelf = self;
+    [NSNotificationCenter.defaultCenter addObserverForName:AVPlayerItemDidPlayToEndTimeNotification
+                                                    object:item queue:NSOperationQueue.mainQueue
+                                                usingBlock:^(NSNotification *n) {
+        typeof(self) sself = weakSelf;
+        if (sself) [sself playVideoAtIndex:sself->_videoIndex + 1];
+    }];
+    [_video play];
+}
+
+- (void)stopVideo {
+    if (_video) { [_video pause]; _video = nil; }
+    if (_videoLayer) { [_videoLayer removeFromSuperlayer]; _videoLayer = nil; }
+}
+
+// ------------------------------------------------------------------ props ---
+// Every original prop placement (lampposts, cars, hostages, destructibles...)
+// as static textured geometry. Archetypes are shared per mesh file; skinned
+// props (hostages) draw in bind pose for now.
+- (void)loadPropsFromLevel:(const std::string &)assetRoot {
+    _propVBs = [NSMutableArray new]; _propIBs = [NSMutableArray new]; _propTex = [NSMutableArray new];
+    _propCounts.clear(); _propBatchArch.clear(); _propAlphaTest.clear(); _props.clear();
+    _bonusTaken.assign(_room ? _room->bonuses.size() : 0, false);
+    _score = 0;
+    if (!_levelReady) return;
+    std::map<std::string, int> archOf;      // meshFile -> archetype index (-1 = failed)
+    std::vector<std::pair<int, int>> archRange;   // [firstBatch, count) per archetype
+    int placed = 0;
+    for (const LevelRoom::PropSpawn &pr : _room->props) {
+        if (_props.size() >= 320) break;
+        auto it = archOf.find(pr.meshFile);
+        int ai;
+        if (it != archOf.end()) ai = it->second;
+        else {
+            Model m; std::string e;
+            bool ok = m.loadMesh(resolveCaseInsensitive(assetRoot + "/" + pr.meshFile), e);
+            if (!ok) {   // original mounts all packs: try the sibling level pack
+                std::string alt = pr.meshFile;
+                size_t lp = alt.find("levelnew_01");
+                if (lp != std::string::npos) alt.replace(lp, 11, "levelnew_02");
+                ok = m.loadMesh(resolveCaseInsensitive(assetRoot + "/" + alt), e);
+            }
+            if (!ok) { archOf[pr.meshFile] = -1; continue; }
+            int first = (int)_propCounts.size();
+            for (const Mesh &mesh : m.meshes) {
+                auto pushRange = [&](uint32_t i0, uint32_t i1, const std::string &texName) {
+                    std::vector<GPUStaticVertex> verts; std::vector<uint16_t> idx;
+                    std::vector<int32_t> remap(mesh.vertices.size(), -1);
+                    for (uint32_t i = i0; i < i1 && i < mesh.indices.size(); ++i) {
+                        uint16_t vi = mesh.indices[i];
+                        if (remap[vi] < 0) {
+                            const Vertex &v = mesh.vertices[vi]; GPUStaticVertex d;
+                            d.p[0] = v.px; d.p[1] = v.py; d.p[2] = v.pz;
+                            d.n[0] = v.nx; d.n[1] = v.ny; d.n[2] = v.nz;
+                            d.uv[0] = v.u; d.uv[1] = v.v; d.uv2[0] = v.u2; d.uv2[1] = v.v2;
+                            for (int k = 0; k < 4; ++k) d.c[k] = 255;
+                            remap[vi] = (int32_t)verts.size(); verts.push_back(d);
+                        }
+                        idx.push_back((uint16_t)remap[vi]);
+                    }
+                    if (verts.empty()) return;
+                    id<MTLTexture> t = [self levelTextureNamed:texName];
+                    if (!t && !m.textureNames.empty()) t = [self levelTextureNamed:m.textureNames.front()];
+                    [_propVBs addObject:[_device newBufferWithBytes:verts.data() length:verts.size() * sizeof(GPUStaticVertex) options:MTLResourceStorageModeShared]];
+                    [_propIBs addObject:[_device newBufferWithBytes:idx.data() length:idx.size() * sizeof(uint16_t) options:MTLResourceStorageModeShared]];
+                    [_propTex addObject:(t ? t : _white)];
+                    _propCounts.push_back(idx.size());
+                    _propBatchArch.push_back((int)archRange.size());
+                    NSString *low = [NSString stringWithUTF8String:texName.c_str()].lowercaseString;
+                    _propAlphaTest.push_back([low containsString:@"alphatest"] ? 1 : 0);
+                };
+                if (mesh.subMeshes.empty()) pushRange(0, (uint32_t)mesh.indices.size(), "");
+                else for (const SubMesh &sm : mesh.subMeshes) pushRange(sm.firstIndex, sm.firstIndex + sm.indexCount, sm.diffuse);
+            }
+            ai = (int)archRange.size();
+            archRange.push_back({first, (int)_propCounts.size() - first});
+            archOf[pr.meshFile] = ai;
+        }
+        if (ai < 0) continue;
+        PropInst pi;
+        pi.arch = ai; pi.model = ToSimd(pr.transform);
+        pi.x = pr.transform.m[12]; pi.y = pr.transform.m[13]; pi.z = pr.transform.m[14];
+        pi.alive = true; pi.destructible = (pr.type == "DestroyableObject");
+        _props.push_back(pi); ++placed;
+    }
+    _propRanges = archRange;
+    NSLog(@"[TotalMayhem] props: %d placed, %zu archetypes, %zu GPU batches; %zu bonuses",
+          placed, archRange.size(), _propCounts.size(), _bonusTaken.size());
+}
+
+- (void)drawProps:(id<MTLRenderCommandEncoder>)enc vp:(simd_float4x4)vp eye:(simd_float3)eye {
+    if (_props.empty()) return;
+    [enc setRenderPipelineState:_staticPipe];
+    Uniforms u; u.vp = vp; u.tint = (simd_float4){1, 1, 1, 1};
+    for (const PropInst &p : _props) {
+        if (!p.alive) continue;
+        float dx = p.x - eye.x, dy = p.y - eye.y;
+        if (dx * dx + dy * dy > 9000.0f * 9000.0f) continue;   // distance cull
+        u.model = p.model;
+        const auto &r = _propRanges[p.arch];
+        for (int b = r.first; b < r.first + r.second; ++b) {
+            u.misc = (simd_float4){_propTex[b] != _white ? 1.0f : 0.0f, 0, 0, _propAlphaTest[b] ? 1.0f : 0.0f};
+            [enc setVertexBytes:&u length:sizeof(u) atIndex:1];
+            [enc setFragmentBytes:&u length:sizeof(u) atIndex:1];
+            [enc setFragmentTexture:_propTex[b] atIndex:0];
+            [enc setFragmentTexture:_white atIndex:1];
+            [enc setVertexBuffer:_propVBs[b] offset:0 atIndex:0];
+            [enc drawIndexedPrimitives:MTLPrimitiveTypeTriangle indexCount:_propCounts[b]
+                             indexType:MTLIndexTypeUInt16 indexBuffer:_propIBs[b] indexBufferOffset:0];
+        }
+    }
+}
+
+// world -> screen pixels (top-left origin); returns false when behind the camera
+static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, float z, float &sx, float &sy) {
+    simd_float4 c = simd_mul(vp, (simd_float4){x, y, z, 1});
+    if (c.w <= 1.0f) return false;
+    sx = (c.x / c.w * 0.5f + 0.5f) * W;
+    sy = (1.0f - (c.y / c.w * 0.5f + 0.5f)) * H;
+    return true;
 }
 
 // -------------------------------------------------------------------- sky ---
@@ -1123,12 +1339,14 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
     if (_heroReady) _fists.bind(*_hero);
     [self loadEnemiesFromLevel:assetRoot];
     [self loadSky:assetRoot levelDir:kLevelDirs[idx % kLevelCount]];
+    [self loadPropsFromLevel:assetRoot];
     _comicLoadedPage = -1; _comicTex = nil;
     if (_actor) {
         _actor->bind(_hero.get(), _levelReady ? _room.get() : nullptr);
         if (_levelReady && _room->hasSpawn) _actor->spawnAt(_room->spawn, _room->spawnYaw);
     }
     _heroHP = 100.0f;
+    _paused = NO;
     if (_levelReady)
         _flow.beginLevel(*_room, idx % kLevelCount, (uint32_t)(CACurrentMediaTime() * 1000.0));
     NSLog(@"[TotalMayhem] level %d (%s): %zu enemies, %zu checkpoints", idx,
@@ -1139,6 +1357,10 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
 - (void)touchBegin:(CGPoint)p {
     if (_flow.phase != bdae::GameFlow::PLAYING) {
         uint32_t nowMs = (uint32_t)(CACurrentMediaTime() * 1000.0);
+        if (_flow.phase == bdae::GameFlow::VIDEO) {
+            [self playVideoAtIndex:_videoIndex + 1];   // tap = skip this clip
+            return;
+        }
         if (_flow.phase == bdae::GameFlow::COMIC) {
             CGFloat sw = UIScreen.mainScreen.bounds.size.width;
             if (p.x > sw * 0.78 && p.y < 90) { _flow.comicIndex = _flow.comicCount - 1; }   // SKIP zone
@@ -1158,8 +1380,8 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
     CGFloat sw = UIScreen.mainScreen.bounds.size.width;
     CGFloat sh = UIScreen.mainScreen.bounds.size.height;
     // top-left corner: single tap = pause, double-height zone toggles atlas sheet
-    if (p.x < 70 && p.y < 70) { _paused = !_paused; return; }
-    if (p.x < 70 && p.y > 70 && p.y < 140) { _showAtlasSheet = !_showAtlasSheet; return; }
+    if (p.x < 44 && p.y < 44) { _paused = !_paused; return; }
+    if (p.x < 30 && p.y > 60 && p.y < 100) { _showAtlasSheet = !_showAtlasSheet; return; }
     // bottom-right action zone = punch (matches the drawn buttons)
     if (p.x > sw * 0.72 && p.y > sh * 0.55) {
         _fists.tryPunch((uint32_t)(CACurrentMediaTime() * 1000.0));

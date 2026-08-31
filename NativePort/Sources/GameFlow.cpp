@@ -22,7 +22,7 @@ bool StringTable::load(const std::string& mapPath, const std::string& dataPath,
 
 void GameFlow::beginLevel(const LevelRoom& lvl, int index, uint32_t nowMs) {
     levelIndex = index;
-    phase = COMIC;
+    phase = TITLE;            // boot videos (renderer) precede this on first launch
     phaseStartMs = nowMs;
     static const int kFirstPage[] = {1, 19, 41, 69, 99, 116, 131, 147, 162, 167, 175, 188};
     comicFirst = (index >= 0 && index < 12) ? kFirstPage[index] : 1;

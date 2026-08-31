@@ -60,11 +60,9 @@ int main(int argc, char** argv) {
     GameFlow flow;
     uint32_t t = 1000;
     flow.beginLevel(l1, 0, t);
-    ck(flow.phase == GameFlow::COMIC && flow.comicFirst == 1 && flow.checkpointsAll.size() >= 10,
-       "L1 session opens on the comic montage at page 1 with the checkpoint chain",
+    ck(flow.phase == GameFlow::TITLE && flow.comicFirst == 1 && flow.checkpointsAll.size() >= 10,
+       "L1 session opens on the chapter card with the checkpoint chain (boot videos are renderer-side)",
        std::to_string(flow.checkpointsAll.size()) + " checkpoints");
-    for (int k = 0; k < 4; ++k) flow.advanceComic(t += 500);
-    ck(flow.phase == GameFlow::TITLE, "montage of 4 pages hands off to the chapter title");
     flow.startPlay(t += 2000);
     // walk the checkpoint chain (teleport visits: flow logic under test, not locomotion)
     bool completed = false;

@@ -362,3 +362,32 @@ yet pop pages mid-level. Chapter card and SKIP use the system font (original
 font atlases are RGBA4444 and now decode; glyph tables next). No in-engine
 intro cinematic yet (camera_lv1_* / .cff). Button glyphs not yet overlaid.
 Gameloft-Logo.m4v / Spiderman-Trailer.m4v boot videos not played.
+
+## Milestone 12 — the streets fill up (2026-08-30)
+
+### IMPLEMENTED
+All original prop placements render: 232 in Level 1 (lampposts, cars, buses,
+garbage cans, hostages, billboards...) as static textured geometry, archetypes
+shared per mesh file, real textures through the Milestone 10 binding, alpha
+test where the texture name says so, 9 km distance cull. Destructibles break
+(disappear) when a punch lands in front arc (+50). The 93 original Bonus
+positions show as floating spider tokens and collect on contact (+25).
+Spider-sense: a pulsing red ring over every enemy that has noticed Spider-Man.
+Score in the HUD line (+10 per hit).
+
+### REQUIRES DEVICE VALIDATION
+Prop scale/orientation from the scene transforms, per-frame cost of ~500
+small draws, skinned props (hostages) in bind pose, bonus token look.
+
+### KNOWN LIMITATIONS
+No break animation/debris for destructibles (break_*wall_anim assets exist
+for that); bonus visuals are a stand-in token; hostages are static.
+
+### Milestone 12.1 — real boot, hardening (2026-08-30)
+Correction: the original does not run a comic montage at boot; it plays
+Gameloft-Logo.m4v then Spiderman-Trailer.m4v (the comic-art motion piece).
+Boot now plays both with AVPlayer (tap = skip clip) from Assets/videos/, then
+the chapter card. Comic pages remain for mid-level beats (Comic nodes) and
+the collection. Input hardening after a movement report: pause zone shrunk
+to 44 pt, contact-sheet toggle narrowed, pause reset on level load, FPS and
+PAUSED readout in the debug line.

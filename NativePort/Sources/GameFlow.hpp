@@ -23,7 +23,7 @@ struct StringTable {
 };
 
 struct GameFlow {
-    enum Phase { COMIC, TITLE, PLAYING, DEAD, COMPLETE };
+    enum Phase { VIDEO, COMIC, TITLE, PLAYING, DEAD, COMPLETE };
     // Intro comic montage: global page numbers (comic_N.tga). Level 1 starts
     // at page 1 (certain); later levels' start pages are estimated from the
     // per-level Comic-node share (documented limitation).
