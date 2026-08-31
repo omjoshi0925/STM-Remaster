@@ -29,6 +29,68 @@ using namespace bdae;
 static const float kModelYawOffset = (float)M_PI_2;
 
 #define TM_DEBUG_HUD 0   // 1 = show the developer status line
+// font_outline_big.tga glyph table, segmented from the atlas and verified by
+// rendering (docs/font_proof.png). Uppercase-only, as the original UI is.
+struct FontGlyph { char c; uint16_t x, y, w, h; };
+static const FontGlyph kFont[] = {
+    {'!', 10, 3, 13, 29},
+    {'"', 333, 3, 15, 29},
+    {'#', 47, 3, 19, 29},
+    {'$', 70, 3, 15, 29},
+    {'%', 91, 3, 20, 29},
+    {'&', 119, 3, 19, 29},
+    {'\'', 144, 3, 10, 29},
+    {'(', 157, 3, 12, 29},
+    {')', 172, 3, 13, 29},
+    {'*', 188, 3, 18, 29},
+    {'+', 210, 3, 17, 29},
+    {',', 233, 3, 10, 29},
+    {'-', 246, 3, 15, 29},
+    {'.', 265, 3, 9, 29},
+    {'/', 278, 3, 16, 29},
+    {'0', 20, 33, 18, 23},
+    {'1', 44, 33, 11, 23},
+    {'2', 60, 33, 18, 23},
+    {'3', 81, 33, 18, 23},
+    {'4', 104, 33, 18, 23},
+    {'5', 127, 33, 18, 23},
+    {'6', 148, 33, 16, 23},
+    {'7', 170, 33, 18, 23},
+    {'8', 192, 33, 18, 23},
+    {'9', 214, 33, 17, 23},
+    {':', 317, 3, 11, 29},
+    {';', 301, 3, 10, 29},
+    {'?', 253, 33, 17, 23},
+    {'@', 273, 33, 22, 23},
+    {'A', 12, 73, 18, 23},
+    {'B', 36, 73, 19, 23},
+    {'C', 59, 73, 18, 23},
+    {'D', 81, 73, 19, 23},
+    {'E', 105, 73, 17, 23},
+    {'F', 126, 73, 17, 23},
+    {'G', 146, 73, 18, 23},
+    {'H', 169, 73, 19, 23},
+    {'I', 191, 73, 12, 23},
+    {'J', 207, 73, 18, 23},
+    {'K', 228, 73, 20, 23},
+    {'L', 251, 73, 14, 23},
+    {'M', 271, 73, 24, 23},
+    {'N', 298, 73, 20, 23},
+    {'O', 322, 73, 18, 23},
+    {'P', 21, 113, 19, 23},
+    {'Q', 44, 113, 18, 23},
+    {'R', 68, 113, 19, 23},
+    {'S', 90, 113, 19, 23},
+    {'T', 112, 113, 19, 23},
+    {'U', 135, 113, 19, 23},
+    {'V', 158, 113, 19, 23},
+    {'W', 181, 113, 25, 23},
+    {'X', 208, 113, 20, 23},
+    {'Y', 233, 113, 18, 23},
+    {'Z', 254, 113, 18, 23},
+};
+static const int kFontCount = (int)(sizeof(kFont) / sizeof(kFont[0]));
+
 static const NSUInteger kMaxBones = 38;
 static const NSUInteger kBoneSlot = 2560;      // 40 bones * 64 B, 256-aligned
 static const NSUInteger kFramesInFlight = 3;   // bone buffers are rewritten per frame
@@ -327,6 +389,7 @@ fragment half4 frag(Out i                   [[stage_in]],
     id<MTLTexture> _fontAtlas;                 // font_outline_big.tga: the yellow outlined UI font
     struct Popup { float x, y, z; int value; uint32_t bornMs; };
     std::vector<Popup> _popups;
+    int _comboHits; uint32_t _comboLastMs;
     UILabel *_flowLabel;
     UILabel *_skipLabel;
     MTKView *_mtkView;
@@ -601,7 +664,11 @@ fragment half4 frag(Out i                   [[stage_in]],
     if (playing) {
         int hits = _fists.update(nowMs, heroPos, _actor ? _actor->yaw() : 0.0f, _foes);
         _score += hits * 10;
-        if (hits > 0) _popups.push_back({heroPos.x, heroPos.y, heroPos.z + 190.0f, hits * 10, nowMs});
+        if (hits > 0) {
+            _popups.push_back({heroPos.x, heroPos.y, heroPos.z + 190.0f, hits * 10, nowMs});
+            _comboHits = (nowMs - _comboLastMs < 1500) ? _comboHits + 1 : 1;
+            _comboLastMs = nowMs;
+        }
         if (_fists.justStruck && _actor) {
             float fx = cosf(_actor->yaw()), fy = sinf(_actor->yaw());
             for (PropInst &p : _props) {
@@ -638,7 +705,8 @@ fragment half4 frag(Out i                   [[stage_in]],
         NSString *lvName = [NSString stringWithUTF8String:
             _strings.get("STR_LEVELNEW_" + std::to_string(_flow.levelIndex + 1) + "_NAME",
                          "LEVEL " + std::to_string(_flow.levelIndex + 1)).c_str()];
-        _skipLabel.hidden = !(_flow.phase == bdae::GameFlow::COMIC || _flow.phase == bdae::GameFlow::VIDEO);
+        _skipLabel.hidden = _fontAtlas || !(_flow.phase == bdae::GameFlow::COMIC || _flow.phase == bdae::GameFlow::VIDEO);
+        _flowLabel.hidden = (_fontAtlas != nil);
         switch (_flow.phase) {
             case bdae::GameFlow::VIDEO:
             case bdae::GameFlow::COMIC:
@@ -799,6 +867,28 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
         quad(cx - rad, cy - rad, 2 * rad, 2 * rad, m, 255, 255, 255, a);
     };
     uint32_t nowMs = (uint32_t)(CACurrentMediaTime() * 1000.0);
+    // text in the original outlined font; align 0 = left, 1 = centre, 2 = right
+    auto glyph = [&](char c) -> const FontGlyph * {
+        if (c >= 'a' && c <= 'z') c = (char)(c - 32);
+        for (int i = 0; i < kFontCount; ++i) if (kFont[i].c == c) return &kFont[i];
+        return nullptr;
+    };
+    auto textWidth = [&](const char *t, float h) {
+        float w = 0, gs = h / 29.0f;
+        for (const char *c = t; *c; ++c) { auto g = glyph(*c); w += (g ? g->w * gs : 9 * gs) + 2 * sc; }
+        return w;
+    };
+    auto drawText = [&](const char *t, float x, float y, float h, int align, uint8_t a) {
+        if (!_fontAtlas) return;
+        useTex(_fontAtlas);
+        float gs = h / 29.0f, w = textWidth(t, h);
+        if (align == 1) x -= w * 0.5f; else if (align == 2) x -= w;
+        for (const char *c = t; *c; ++c) {
+            auto g = glyph(*c);
+            if (g) { quad(x, y + (29 - g->h) * gs * 0.5f, g->w * gs, g->h * gs, bdae::SpriteModule{g->x, g->y, g->w, g->h}, 255, 255, 255, a); x += g->w * gs + 2 * sc; }
+            else x += 9 * gs + 2 * sc;
+        }
+    };
 
     // ---- flow overlays (video/title/death/complete) and the comic page
     if (_flow.phase != bdae::GameFlow::PLAYING) {
@@ -811,6 +901,38 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
                 float ph = H * 0.94f * (1.04f + 0.14f * t), pw = ph;
                 useTex(page);
                 quad((W - pw) * 0.5f, (H - ph) * 0.5f, pw, ph, bdae::SpriteModule{0, 0, 512, 512}, 255, 255, 255, 255);
+            }
+        }
+        if (_fontAtlas) {
+            std::string lvName = _strings.get("STR_LEVELNEW_" + std::to_string(_flow.levelIndex + 1) + "_NAME",
+                                              "LEVEL " + std::to_string(_flow.levelIndex + 1));
+            for (char &c : lvName) if (c == '|') c = '\n';
+            float pulse = 0.75f + 0.25f * sinf((float)CACurrentMediaTime() * 4.0f);
+            switch (_flow.phase) {
+                case bdae::GameFlow::VIDEO:
+                case bdae::GameFlow::COMIC:
+                    drawText("SKIP", W - 30 * sc, 24 * sc, 44 * sc, 2, 255); break;
+                case bdae::GameFlow::TITLE: {
+                    float y = H * 0.36f;
+                    size_t p = 0;
+                    while (p <= lvName.size()) {
+                        size_t nl = lvName.find('\n', p); if (nl == std::string::npos) nl = lvName.size();
+                        std::string line = lvName.substr(p, nl - p);
+                        if (!line.empty()) { drawText(line.c_str(), W * 0.5f, y, 72 * sc, 1, 255); y += 84 * sc; }
+                        p = nl + 1;
+                    }
+                    drawText("TAP TO START", W * 0.5f, H * 0.78f, 40 * sc, 1, (uint8_t)(255 * pulse));
+                    break;
+                }
+                case bdae::GameFlow::DEAD:
+                    drawText("SPIDER-MAN IS DOWN", W * 0.5f, H * 0.40f, 64 * sc, 1, 255);
+                    drawText("TAP TO RETRY", W * 0.5f, H * 0.62f, 40 * sc, 1, (uint8_t)(255 * pulse));
+                    break;
+                case bdae::GameFlow::COMPLETE:
+                    drawText("LEVEL COMPLETE!", W * 0.5f, H * 0.40f, 72 * sc, 1, 255);
+                    drawText("TAP TO CONTINUE", W * 0.5f, H * 0.62f, 40 * sc, 1, (uint8_t)(255 * pulse));
+                    break;
+                default: break;
             }
         }
     }
@@ -864,21 +986,28 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
                 if (WorldToScreen(_lastVP, W, H, pp.x, pp.y, pp.z, sx, sy)) {
                     float rise = age / 1300.0f;
                     uint8_t a = (uint8_t)(255 * (1.0f - rise * rise));
-                    float gh = 46 * sc, gs = gh / 24.0f;   // glyph height 24 in the atlas
+                    float gh = 52 * sc, gs = gh / 29.0f;   // font row height 29 in the atlas
                     char buf[16]; snprintf(buf, sizeof buf, "+%d", pp.value);
                     float total = 0;
                     for (char *c = buf; *c; ++c) total += (*c == '+' ? 18 : kDigW[*c - '0']) * gs + 2 * sc;
                     float x = sx - total * 0.5f, y = sy - 90.0f * sc * rise - gh;
                     for (char *c = buf; *c; ++c) {
-                        bdae::SpriteModule g = (*c == '+') ? bdae::SpriteModule{188, 8, 18, 24}
-                                                           : bdae::SpriteModule{kDigX[*c - '0'], 34, kDigW[*c - '0'], 24};
-                        quad(x, y, g.w * gs, gh, g, 255, 255, 255, a);
+                        bdae::SpriteModule g = (*c == '+') ? bdae::SpriteModule{210, 3, 17, 29}
+                                                           : bdae::SpriteModule{kDigX[*c - '0'], 33, kDigW[*c - '0'], 23};
+                        float gh2 = g.h * gs;
+                        quad(x, y + (29 * gs - gh2) * 0.5f, g.w * gs, gh2, g, 255, 255, 255, a);
                         x += g.w * gs + 2 * sc;
                     }
                 }
                 ++i;
             }
         }
+    }
+    // combo banner (right side), like the original "N COMBOS!"
+    if (_fontAtlas && _flow.phase == bdae::GameFlow::PLAYING && _comboHits >= 2 && nowMs - _comboLastMs < 1200) {
+        char cb[32]; snprintf(cb, sizeof cb, "%d COMBOS!", _comboHits);
+        uint8_t a = (uint8_t)(255 * (1.0f - (nowMs - _comboLastMs) / 1200.0f));
+        drawText(cb, W - 40 * sc, H * 0.30f, 56 * sc, 2, a);
     }
     if (verts.empty()) return;
     if (!segs.empty()) segs.back().count = verts.size() - segs.back().start;

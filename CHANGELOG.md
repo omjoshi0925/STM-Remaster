@@ -409,3 +409,11 @@ Score popups ("+N") use the original outlined font font_outline_big.tga
 Developer status line is off unless TM_DEBUG_HUD=1. Assets/bundle audit:
 interface.tga, interface.bsprite, font_outline_big.tga are all in the
 SpiderManTotalMayhem resources; the break was renderer-side only.
+
+### Milestone 12.3 — the original font (2026-08-30)
+font_outline_big.tga glyph table segmented from the atlas (55 glyphs,
+uppercase + digits + punctuation) and proven by rendering (docs/font_proof.png).
+All flow text now uses it: chapter card (original level name from xlsStrings),
+TAP TO START/RETRY/CONTINUE, SKIP, SPIDER-MAN IS DOWN, LEVEL COMPLETE, the
+"+N" popups (corrected '+' glyph) and a "N COMBOS!" banner. UILabels remain
+only as a fallback if the font atlas fails to load.
