@@ -178,3 +178,123 @@ more analysis here.
 **Format doc:** image/effect/material libraries decoded; texture-binding open
 question documented with evidence; config tables inventoried (combat/AI are
 data). **Fixed:** enemy clip scene-offset grounding; visual batch splitting.
+
+### Milestone 5.1 — first-device-frame fixes (2026-08-29)
+The first rendered M5 frame on iPhone 14 Pro surfaced three bugs invisible to
+host tests: (1) MSL rounds a struct containing `float2` to 40 bytes while the
+CPU wrote 36-byte static vertices — level geometry exploded into spikes; fixed
+with `packed_float2`. (2) The movement forward vector was the negation of the
+camera forward — controls felt inverted. (3) Bone matrices were written into a
+single MTLBuffer every frame while the GPU still read the previous frame —
+torn/folded skinned characters; fixed with triple-buffered bone slots and an
+in-flight semaphore. Also: CMakeLists now pins CLANG_ENABLE_OBJC_ARC=YES and
+Renderer.mm sheds its vestigial Milestone-2 GameRuntime integration.
+
+## Milestone 6 — the game fights back (2026-08-29)
+**Config tables decoded** (u16-length-prefixed strings mixed with u32/float
+fields; records begin at UPPERCASE names): EnemysAttributeConfigs.bin yields
+per-enemy HP / move speed / vision 7200 / melee range / ranged distance
+(THUG_KNIFE 40hp 150u/s 200; THUG_GUN ranged 1200; RHINO 100hp 3000);
+AttackIntervalTimeConfigs.bin yields the common 2000 ms melee interval.
+**Combat layer (Combat.hpp/.cpp, host-verified end to end):** enemy AI state
+machine (idle → chase on navmesh → attack → cooldown → hurt → dead) using
+config stats and original clips (idle_at1_idle, idle_hurt_idle,
+air_to_onground death); hero punch combo (idle_to_punch_right →
+punch_right_to_idle) with front-arc hit detection. Sim proves: chase closes
+900→180 units on the real navmesh, attacks respect the 2000 ms interval, a
+knife thug dies in exactly ceil(40/10)=4 punches, corpses persist on the death
+clip's final frame, punches miss behind the hero.
+**Renderer wiring (not yet device-verified):** enemies live in the combat sim
+(positions, facing, current clip), tap-to-punch on the move side, HP + alive
+count HUD. Placeholder: enemy melee damage fixed at 5 until
+EnemysAttackConfigs.bin per-attack damage is decoded.
+
+## Milestone 7 — the original HUD (2026-08-29)
+sprites.pack opened: 217 files including interface/mainmenu/level-select/title
+atlases, .bsprite module tables, and the game fonts. GS_*.json screen files are
+JSON-with-//-comments — all 14 menu screens now parse (buttonConfig /
+spriteConfig / textConfig: the menu system is data-driven). New UIKitData
+parses .bsprite module tables (validated: 64 interface modules, all inside the
+512x512 atlas). Renderer gains a 2D sprite pass (alpha-blended, fully packed
+20-byte vertex, frame-ring buffered): health bar tied to hero HP, virtual
+stick that appears under the thumb, punch buttons bottom-right, pause
+(top-left corner tap), and a module contact-sheet overlay (tap below pause) so
+module indices can be mapped from one device screenshot. Module-to-element
+mapping is shape-heuristic until that screenshot; menus themselves not yet
+built. Requires Assets/sprites/ extracted from sprites.pack.
+
+## Milestone 8 — two levels, start to finish (2026-08-29)
+
+### IMPLEMENTED
+GameFlow session system: TITLE -> PLAYING -> DEAD/respawn-at-checkpoint ->
+COMPLETE -> next level, cycling Level 1 <-> Level 2 with full unload/reload of
+geometry, enemies, and combat state. Original CheckPoint markers drive respawn
+and completion. StringTable reads xlsStrings (592 localized entries). Ranged
+enemies (gun, molotov, hammer, big) engage from their config rangedRange
+instead of walking to melee. Boss placements spawn: Sandman (Level 1) and
+Rhino (Level 2) with their original meshes, rigs, config stats (SANDMAN/RHINO
+rows now parse - stats table recovers all 25 records), and real attack clips.
+Title/death/complete overlays composite the original paper-title art.
+
+### VERIFIED LOCALLY (8/8 host suites green)
+Level 2 loads end to end (23k tris, 79 enemies, 15 checkpoints, spawn on
+navmesh); every enemy placement in BOTH levels maps to a runtime archetype;
+full checkpoint chain completes a level; death returns to the last checkpoint;
+gun thug lands ranged hits from ~900 units without ever closing to melee;
+both bosses load, animate, and fit the 40-bone budget (21 and 36 joints).
+
+### REQUIRES DEVICE VALIDATION
+Level switching at runtime (buffer teardown/rebuild), flow overlays and paper
+art, boss rendering scale/anchoring, ranged attack feel, checkpoint radius.
+
+### KNOWN LIMITATIONS
+Completion = visiting all original checkpoints (the real trigger/cinematic
+completion chain is not yet decoded). Bosses use the generic melee/ranged AI,
+not original boss phases/QTEs. Title/results text uses the system font with
+original paper art (original font-atlas rendering and level-name string keys
+not yet mapped). Defeated enemies stay dead through respawns (in-memory
+checkpoints only). Enemy damage still flat 5.
+
+### NOT YET IMPLEMENTED
+Cinematics (.cff), audio, comic intro sequences, Trigger/TriggerRestore/
+CameraArea/WebGrabPoint/Hostage/DestroyableObject runtimes, room streaming,
+level textures (binding still unresolved), menus beyond the flow overlays,
+wall-crawling, QTEs, score/rank.
+
+## Milestone 9 — the living-level engine layer (2026-08-29)
+
+### IMPLEMENTED
+Level parser now yields the full original prop inventory: 232 placements in
+Level 1 (156 destructibles, 46 animated objects, 10 cars, 10 hostages, 10
+statics) plus 93 Bonus pickup positions, each with mesh path (normalized,
+case-resolved, sibling-pack fallback) and absolute world transform.
+EnemysAttackConfigs.bin parses: 90 named attack rows with real damage values.
+Hero combat is a 3-hit combo chain on original clips (punch_right ->
+far_attack -> backflip_kick, 10/10/15) with tap-to-chain windows. Enemies take
+navmesh-gated knockback on every hit. takeHit carries attacker position.
+
+### VERIFIED LOCALLY (9/9 suites green)
+All 232 props parse; 50/52 unique prop meshes load through the BDAE loader
+(8 skinned); combo chains through all three stages and drops a 40 hp thug;
+knockback shoves 70 units and stays on walkable ground; attack table rows
+recover plausible damage (with named samples); all prior suites unchanged.
+
+### KNOWN LIMITATIONS
+Enemy->attack-row linkage undecoded (representative melee damage still used).
+break_bankwall/break_wall ship only as *_anim variants (destruction states -
+future). Bonus visuals unidentified (position-only). Hero punch damage values
+are placeholders pending the MC attack table.
+
+### NOT YET IMPLEMENTED (next: Milestone 9.1 renderer wiring)
+Rendering of props/bonuses/sky, destructible break + score, spider-sense
+rings, bonus pickup, hit-reaction visuals. Then: textures, cinematics, audio,
+boss phases, camera areas, wall traversal.
+
+## Milestone 9.2 — binary reconnaissance (2026-08-30)
+Android HD build analyzed: libspiderman.so keeps 56k named symbols — a map of
+the whole engine (Player 277 methods, CLevel, CEnemy, CBoss, CCinematicThread,
+VoxSoundManager, IBehavior* AI, CTutorial). Texture-binding mechanism located
+in CMaterial::prepareMaterial: name-based image lookup + name-substring layer
+classification (lightmap / alphatest). Tools/disasm_libspiderman.py added
+(capstone+pyelftools, resolves calls, literal pools and GOT-relative strings).
+editor.pack (Gameloft editor gizmo meshes) catalogued for marker visuals.

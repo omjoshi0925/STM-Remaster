@@ -264,3 +264,31 @@ mappings; plus `BehaviorState`, `AttackIntervalTimeConfigs`, `QTE_ACTIONS`,
 largely decodable tables, not hardcoded logic. The `GS_*.json` files are not
 valid JSON (Gameloft text format). `!ScriptFile` attributes in `.irr` scenes
 point at `cinematics/*.cff`, not scripts.
+
+### Config record encoding (decoded in Milestone 6)
+Config .bin tables: u32 record count, then an unaligned field stream of
+[u16 length][ASCII string] and raw 4-byte u32/float values. A record begins at
+an UPPERCASE_NAME string. EnemysAttributeConfigs field mapping (validated
+across all enemy rows): f0=HP, f1=moveSpeed (u/s), f2=vision radius (7200 for
+all), f7=melee attack range, f9=ranged-attack distance (gun 1200, rhino 3000).
+AttackIntervalTimeConfigs: named records; ENEMY_MELEE_ATTACK_COMMON carries
+2000 ms interval values. Remaining tables (EnemysAttackConfigs per-attack
+damage/hit-class, BehaviorAnimMapList behavior→clip, MC_STATE 131 hero states)
+follow the same encoding and are the next decode targets.
+
+### Texture binding — what the Android binary reveals (Aug 30 session)
+`libspiderman.so` (Android HD build) ships a full symbol table (56,151 names).
+The binding path is `CColladaFactory::createMaterial` -> `CMaterial::CMaterial`
+-> `CMaterial::prepareMaterial(IRootSceneNode*)` (0x4409c8, 2364 B). For each
+texture layer it reads a param struct S with S+0 = name string and S+0xc == 1
+(texture type), then calls `IRootSceneNode::getLibraryImage(char const*)` ->
+`CColladaDatabase::constructImage(name)` -> `getImage(name)`: the image is
+resolved BY NAME against the file's own image library. Layers are then
+classified by substring of the image name: "lightmap" -> lightmap layer
+(material type 0x1B, second UV set — geometry files carry lightmap.tga and a
+second UV channel), "alphatest" -> alpha-tested transparency, and a hardcoded
+special case for the "levelnew_01_01" atlas. Still open: the exact source of
+the per-layer name string S+0 in the on-disk effect record (the runtime SEffect
+param objects are built in `CColladaDatabase::getEffect`; next step is tracing
+that constructor with Tools/disasm_libspiderman.py). Diffuse-per-submesh
+selection is therefore one function away, not a mystery.

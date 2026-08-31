@@ -5,6 +5,9 @@ OriginalPacks/
 *.ipa
 *.pack
 *.vpk
+*.apk
+*.so
+*.mp4
 # build output + apply-script backups
 build-ios/
 Sources.backup-*
