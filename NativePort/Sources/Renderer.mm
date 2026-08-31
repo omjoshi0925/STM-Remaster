@@ -33,7 +33,7 @@ static const char *kLevelDirs[] = {"levelnew_01", "levelnew_02"};
 static const int kLevelCount = 2;
 
 struct GPUSkinVertex { float p[3]; float n[3]; float uv[2]; uint16_t bone[4]; float w[4]; };
-struct GPUStaticVertex { float p[3]; float n[3]; float uv[2]; uint8_t c[4]; };
+struct GPUStaticVertex { float p[3]; float n[3]; float uv[2]; float uv2[2]; uint8_t c[4]; };   // 44 B
 struct Uniforms { simd_float4x4 vp; simd_float4x4 model; simd_float4 tint; simd_float4 misc; };
 
 static uint32_t rdle32(const uint8_t *p) {
@@ -113,9 +113,9 @@ static const char *const kShaderSource = R"(
 using namespace metal;
 
 struct SkinV   { packed_float3 p; packed_float3 n; float2 uv; ushort4 b; packed_float4 w; };
-struct StaticV { packed_float3 p; packed_float3 n; packed_float2 uv; uchar4 c; };  // fully packed: sizeof==36, matches CPU
+struct StaticV { packed_float3 p; packed_float3 n; packed_float2 uv; packed_float2 uv2; uchar4 c; };  // fully packed: sizeof==44, matches CPU
 struct U       { float4x4 vp; float4x4 model; float4 tint; float4 misc; };
-struct Out     { float4 p [[position]]; float2 uv; float l; float3 vc; };
+struct Out     { float4 p [[position]]; float2 uv; float2 uv2; float l; float3 vc; };
 
 static float shade(float3 n) {
     float3 L = normalize(float3(-0.35, -0.55, 0.75));
@@ -136,6 +136,7 @@ vertex Out skinnedV(const device SkinV *a      [[buffer(0)]],
     o.p  = u.vp * (u.model * float4(lp.xyz, 1.0));
     o.uv = float2(v.uv.x, 1.0 - v.uv.y);
     o.l  = shade((u.model * float4(ln, 0.0)).xyz);
+    o.uv2 = o.uv;
     o.vc = float3(1.0);
     return o;
 }
@@ -150,6 +151,7 @@ vertex Out staticV(const device StaticV *a [[buffer(0)]],
     // misc.y blends between directional shading (0) and the baked vertex
     // lighting the level ships (1).
     o.l  = mix(shade((u.model * float4(float3(v.n), 0.0)).xyz), 1.0, u.misc.y);
+    o.uv2 = float2(v.uv2.x, 1.0 - v.uv2.y);
     o.vc = float3(v.c.rgb) / 255.0;
     return o;
 }
@@ -176,9 +178,13 @@ fragment half4 spriteF(SpriteOut i             [[stage_in]],
 
 fragment half4 frag(Out i                   [[stage_in]],
                     texture2d<half> t       [[texture(0)]],
+                    texture2d<half> lm      [[texture(1)]],
                     sampler s               [[sampler(0)]],
                     constant U &u           [[buffer(1)]]) {
-    half3 base = (u.misc.x > 0.5) ? t.sample(s, i.uv).rgb : half3(u.tint.rgb);
+    half4 tex = t.sample(s, i.uv);
+    if (u.misc.w > 0.5 && tex.a < 0.5h) discard_fragment();     // alpha-tested foliage/fences
+    half3 base = (u.misc.x > 0.5) ? tex.rgb : half3(u.tint.rgb);
+    if (u.misc.z > 0.5) base *= lm.sample(s, i.uv2).rgb * 2.0h;  // original lightmap layer (M2)
     return half4(base * half3(i.vc) * half(i.l), half(u.tint.a));
 }
 )";
@@ -201,6 +207,11 @@ fragment half4 frag(Out i                   [[stage_in]],
     NSMutableArray<id<MTLBuffer>> *_levelVBs;
     NSMutableArray<id<MTLBuffer>> *_levelIBs;
     std::vector<NSUInteger> _levelCounts;
+    NSMutableArray<id<MTLTexture>> *_levelTex;     // diffuse per batch (_white if unresolved)
+    NSMutableArray<id<MTLTexture>> *_levelLM;      // lightmap per batch (_white if none)
+    std::vector<int> _levelFlags;                  // bit0 hasTex, bit1 hasLM, bit2 alphaTest
+    NSMutableDictionary<NSString *, id<MTLTexture>> *_texCache;
+    NSMutableDictionary<NSString *, NSString *> *_texIndex;   // lowercase file -> path
 
     // Enemy archetypes (thug variants) + placed instances from the original level.
     std::vector<std::unique_ptr<bdae::Model>> _npcModel;
@@ -515,12 +526,15 @@ fragment half4 frag(Out i                   [[stage_in]],
         u.vp = vp;
         u.model = MIdent();
         u.tint = (simd_float4){0.92f, 0.94f, 1.0f, 1.0f};
-        u.misc = (simd_float4){0, 0.75f, 0, 0};   // mostly baked vertex lighting
         [enc setRenderPipelineState:_staticPipe];
-        [enc setVertexBytes:&u length:sizeof(u) atIndex:1];
-        [enc setFragmentTexture:_white atIndex:0];
-        [enc setFragmentBytes:&u length:sizeof(u) atIndex:1];
         for (NSUInteger b = 0; b < _levelCounts.size(); ++b) {
+            int fl = (b < _levelFlags.size()) ? _levelFlags[b] : 0;
+            // misc = {hasTexture, bake blend, hasLightmap, alphaTest}
+            u.misc = (simd_float4){(fl & 1) ? 1.0f : 0.0f, 0.75f, (fl & 2) ? 1.0f : 0.0f, (fl & 4) ? 1.0f : 0.0f};
+            [enc setVertexBytes:&u length:sizeof(u) atIndex:1];
+            [enc setFragmentBytes:&u length:sizeof(u) atIndex:1];
+            [enc setFragmentTexture:(b < _levelTex.count ? _levelTex[b] : _white) atIndex:0];
+            [enc setFragmentTexture:(b < _levelLM.count ? _levelLM[b] : _white) atIndex:1];
             [enc setVertexBuffer:_levelVBs[b] offset:0 atIndex:0];
             [enc drawIndexedPrimitives:MTLPrimitiveTypeTriangle
                             indexCount:_levelCounts[b]
@@ -676,6 +690,35 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
         [enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:hudCount];
     }
     [enc setDepthStencilState:_depth];
+}
+
+// --------------------------------------------------------------- textures ---
+// The original app mounts every pack; level geometry references textures that
+// ship in other level packs, so index every */textures_bin under the asset root.
+- (void)buildTextureIndex:(const std::string &)assetRoot {
+    if (_texIndex) return;
+    _texIndex = [NSMutableDictionary new];
+    _texCache = [NSMutableDictionary new];
+    NSFileManager *fm = NSFileManager.defaultManager;
+    NSString *root = [NSString stringWithUTF8String:assetRoot.c_str()];
+    for (NSString *sub in [fm contentsOfDirectoryAtPath:root error:nil]) {
+        NSString *dir = [[root stringByAppendingPathComponent:sub] stringByAppendingPathComponent:@"textures_bin"];
+        for (NSString *f in [fm contentsOfDirectoryAtPath:dir error:nil])
+            if (!_texIndex[f.lowercaseString]) _texIndex[f.lowercaseString] = [dir stringByAppendingPathComponent:f];
+    }
+    NSLog(@"[TotalMayhem] texture index: %lu files", (unsigned long)_texIndex.count);
+}
+
+- (id<MTLTexture>)levelTextureNamed:(const std::string &)name {
+    if (name.empty()) return nil;
+    NSString *key = [NSString stringWithUTF8String:name.c_str()].lowercaseString;
+    id<MTLTexture> cached = _texCache[key];
+    if (cached) return cached == (id)NSNull.null ? nil : cached;
+    NSString *path = _texIndex[key];
+    id<MTLTexture> t = path ? LoadPVRTC(_device, path) : nil;
+    _texCache[key] = t ? t : (id)NSNull.null;
+    if (!t) NSLog(@"[TotalMayhem] texture missing: %s", name.c_str());
+    return t;
 }
 
 // ---------------------------------------------------------------- enemies ---
@@ -847,6 +890,10 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
     if (!_levelReady) NSLog(@"[TotalMayhem] level %d failed: %s", idx, levelErr.c_str());
     _levelVBs = [NSMutableArray new];
     _levelIBs = [NSMutableArray new];
+    _levelTex = [NSMutableArray new];
+    _levelLM = [NSMutableArray new];
+    _levelFlags.clear();
+    [self buildTextureIndex:assetRoot];
     if (_levelReady) {
         for (const TriMesh &lv : _room->visualBatches) {
             std::vector<GPUStaticVertex> verts(lv.vertices.size());
@@ -856,7 +903,18 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
                 d.p[0] = s.px; d.p[1] = s.py; d.p[2] = s.pz;
                 d.n[0] = s.nx; d.n[1] = s.ny; d.n[2] = s.nz;
                 d.uv[0] = s.u; d.uv[1] = s.v;
+                d.uv2[0] = s.u2; d.uv2[1] = s.v2;
                 for (int k = 0; k < 4; ++k) d.c[k] = s.color[k];
+            }
+            {
+                id<MTLTexture> dt = [self levelTextureNamed:lv.diffuse];
+                id<MTLTexture> lt = [self levelTextureNamed:lv.lightmap];
+                int flags = (dt ? 1 : 0) | (lt ? 2 : 0);
+                NSString *low = [NSString stringWithUTF8String:lv.diffuse.c_str()].lowercaseString;
+                if ([low containsString:@"alphatest"]) flags |= 4;
+                [_levelTex addObject:(dt ? dt : _white)];
+                [_levelLM addObject:(lt ? lt : _white)];
+                _levelFlags.push_back(flags);
             }
             [_levelVBs addObject:[_device newBufferWithBytes:verts.data()
                                                       length:verts.size() * sizeof(GPUStaticVertex)

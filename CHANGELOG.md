@@ -298,3 +298,33 @@ in CMaterial::prepareMaterial: name-based image lookup + name-substring layer
 classification (lightmap / alphatest). Tools/disasm_libspiderman.py added
 (capstone+pyelftools, resolves calls, literal pools and GOT-relative strings).
 editor.pack (Gameloft editor gizmo meshes) catalogued for marker visuals.
+
+## Milestone 10 — the textured city (2026-08-30)
+
+### IMPLEMENTED
+The effect->texture binding, found by cross-reading libspiderman.so and the
+data: effect record +76/+80 = per-layer UV-set indices, +84/+88 = per-layer
+image indices into the file's image table; the image entry's *path* field
+carries the real on-disk file name (the filename field is Max's slot id). A
+second layer whose name contains "lightmap" is the lightmap on UV set 1;
+names containing "alphatest" are alpha-tested (both rules confirmed in
+CMaterial::prepareMaterial). Loader now resolves diffuse/lightmap per submesh,
+reads the second UV set, and the level builds texture-keyed visual batches.
+Renderer: 44-byte static vertex with uv2, per-batch diffuse + lightmap (M2
+modulate) + alpha-test, texture index across every */textures_bin under
+Assets (the original mounts all packs), cached PVRTC loads.
+
+### VERIFIED LOCALLY (10/10 suites green)
+958 layer references in Level 1, zero out-of-range indices; thug -> thug.tga;
+39 batches preserve all 29,439 triangles; 36 distinct original textures; the
+lightmap layer carries a distinct second UV set; 23/38 diffuse files resolve
+with only four packs mounted (more with all level packs extracted).
+
+### REQUIRES DEVICE VALIDATION
+PVRTC decode of every level texture format variant, lightmap intensity (M2
+assumed), alpha-test threshold, texture memory with all packs mounted.
+
+### KNOWN LIMITATIONS
+Spider-Man's own effect carries no layer arrays (engine falls back to image 0;
+the renderer already does the same). Textures shipped only in level packs not
+extracted into Assets render white with baked vertex colour until extracted.

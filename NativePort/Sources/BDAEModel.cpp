@@ -184,6 +184,46 @@ bool Model::loadMesh(const std::string& path, std::string& err) {
     for (uint32_t i = 0; i < ic && i < 256; ++i) {
         std::string s = f.strAtPtr(ip + i * 20);
         if (!s.empty()) textureNames.push_back(s);
+        std::string p = f.strAtPtr(ip + i * 20 + 8);
+        for (char& ch : p) if (ch == '\\') ch = '/';
+        size_t sl = p.find_last_of('/');
+        std::string base = (sl == std::string::npos) ? p : p.substr(sl + 1);
+        imageFiles.push_back(base.empty() ? s : base);
+    }
+
+    // ---- material -> texture binding (effect +76/+80 uv sets, +84/+88 image indices)
+    struct Binding { std::string diffuse, lightmap; int duv = 0, luv = 1; };
+    std::map<std::string, Binding> bindings;   // keyed by material name
+    {
+        uint32_t ec = f.u32(D + 60), ep = f.u32(D + 64);
+        uint32_t mc = f.u32(D + 68), mp = f.u32(D + 72);
+        uint32_t gp = f.u32(D + 80);
+        std::map<std::string, Binding> byEffect;
+        for (uint32_t i = 0; i < ec && i < 4096; ++i) {
+            uint32_t e = ep + i * 92;
+            uint32_t nImg = f.u32(e + 84), pImg = f.u32(e + 88);
+            uint32_t nUv = f.u32(e + 76), pUv = f.u32(e + 80);
+            if (!nImg || nImg > 8) continue;
+            Binding b;
+            for (uint32_t k = 0; k < nImg; ++k) {
+                uint32_t idx = f.u32(pImg + k * 4);
+                if (idx >= imageFiles.size()) continue;
+                int uv = (nUv > k && nUv < 8) ? (int)f.u32(pUv + k * 4) : (int)k;
+                std::string nm = imageFiles[idx];
+                std::string low = nm; for (char& c : low) c = (char)std::tolower((unsigned char)c);
+                if (low.find("lightmap") != std::string::npos) { b.lightmap = nm; b.luv = uv; }
+                else if (b.diffuse.empty()) { b.diffuse = nm; b.duv = uv; }
+            }
+            byEffect[f.strAtPtr(e)] = b;
+        }
+        uint32_t stride = (mc && gp > mp && (gp - mp) % mc == 0) ? (gp - mp) / mc : 40;
+        for (uint32_t i = 0; i < mc && i < 4096; ++i) {
+            uint32_t me = mp + i * stride;
+            std::string url = f.strAtPtr(me + 12);
+            if (!url.empty() && url[0] == '#') url = url.substr(1);
+            auto it = byEffect.find(url);
+            if (it != byEffect.end()) bindings[f.strAtPtr(me)] = it->second;
+        }
     }
 
     // ---- scene nodes
@@ -251,12 +291,13 @@ bool Model::loadMesh(const std::string& path, std::string& err) {
         if (!sane || attrs[0].bytes < 12) continue;
 
         uint32_t po = attrs[0].off;
-        uint32_t no = 0xffffffffu, uo = 0xffffffffu, co = 0xffffffffu;
+        uint32_t no = 0xffffffffu, uo = 0xffffffffu, co = 0xffffffffu, uo2 = 0xffffffffu;
         for (uint32_t a = 1; a < ac; ++a) {
             if (attrs[a].type == 1 && attrs[a].bytes == 4) { if (co == 0xffffffffu) co = attrs[a].off; continue; }
             if (attrs[a].type != 6) continue;
             if (no == 0xffffffffu && attrs[a].bytes >= 12) { no = attrs[a].off; continue; }
-            if (uo == 0xffffffffu && attrs[a].bytes == 8)  { uo = attrs[a].off; }
+            if (uo == 0xffffffffu && attrs[a].bytes == 8)  { uo = attrs[a].off; continue; }
+            if (uo2 == 0xffffffffu && attrs[a].bytes == 8) { uo2 = attrs[a].off; }
         }
         m.sourceStride = stride;
         m.hadNormals = (no != 0xffffffffu);
@@ -272,6 +313,8 @@ bool Model::loadMesh(const std::string& path, std::string& err) {
             if (m.hadUVs)     { d.u = f.f32(v + uo); d.v = f.f32(v + uo + 4); }
             if (co != 0xffffffffu)
                 for (int k = 0; k < 4; ++k) d.color[k] = f.u8(v + co + k);
+            if (uo2 != 0xffffffffu) { d.u2 = f.f32(v + uo2); d.v2 = f.f32(v + uo2 + 4); }
+            else { d.u2 = d.u; d.v2 = d.v; }
         }
         // Submesh records are 64 bytes:
         //   +4 material name, +8 triangleCount, +24 indexCount, +28 index pointer,
@@ -284,6 +327,12 @@ bool Model::loadMesh(const std::string& path, std::string& err) {
             if (icnt != tris * 3u) continue;          // cross-check both counters
             if (!icnt || icnt > 3u * 65536u || !f.ok(ipos, static_cast<size_t>(icnt) * 2)) continue;
             SubMesh s; s.firstIndex = static_cast<uint32_t>(m.indices.size()); s.indexCount = icnt;
+            s.material = f.strAtPtr(se + 4);
+            auto bit = bindings.find(s.material);
+            if (bit != bindings.end()) {
+                s.diffuse = bit->second.diffuse; s.lightmap = bit->second.lightmap;
+                s.diffuseUv = bit->second.duv; s.lightmapUv = bit->second.luv;
+            }
             for (uint32_t j = 0; j < icnt; ++j) {
                 uint16_t ix = f.u16(ipos + j * 2);
                 m.indices.push_back(ix < vc ? ix : 0);

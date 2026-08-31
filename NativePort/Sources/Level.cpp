@@ -162,6 +162,33 @@ void TriMesh::appendTransformed(const Mesh& src, const Mat4& xform) {
     for (uint16_t i : src.indices) indices.push_back(static_cast<uint16_t>(base + i));
 }
 
+void TriMesh::appendSubMesh(const Mesh& src, const SubMesh& sm, const Mat4& xform) {
+    std::vector<int32_t> remap(src.vertices.size(), -1);
+    std::vector<uint16_t> local;
+    local.reserve(sm.indexCount);
+    for (uint32_t i = sm.firstIndex; i < sm.firstIndex + sm.indexCount && i < src.indices.size(); ++i) {
+        uint16_t vi = src.indices[i];
+        if (remap[vi] < 0) {
+            if (vertices.size() >= 60000) return;   // uint16 index budget
+            const Vertex& v = src.vertices[vi];
+            Vertex o = v;
+            Vec3 p = transformPoint(xform, Vec3{ v.px, v.py, v.pz });
+            o.px = p.x; o.py = p.y; o.pz = p.z;
+            o.nx = xform.m[0]*v.nx + xform.m[4]*v.ny + xform.m[8]*v.nz;
+            o.ny = xform.m[1]*v.nx + xform.m[5]*v.ny + xform.m[9]*v.nz;
+            o.nz = xform.m[2]*v.nx + xform.m[6]*v.ny + xform.m[10]*v.nz;
+            float l = std::sqrt(o.nx*o.nx + o.ny*o.ny + o.nz*o.nz);
+            if (l > 1e-6f) { o.nx /= l; o.ny /= l; o.nz /= l; }
+            remap[vi] = (int32_t)vertices.size();
+            vertices.push_back(o);
+            bboxMin.x = std::min(bboxMin.x, p.x); bboxMin.y = std::min(bboxMin.y, p.y); bboxMin.z = std::min(bboxMin.z, p.z);
+            bboxMax.x = std::max(bboxMax.x, p.x); bboxMax.y = std::max(bboxMax.y, p.y); bboxMax.z = std::max(bboxMax.z, p.z);
+        }
+        local.push_back((uint16_t)remap[vi]);
+    }
+    indices.insert(indices.end(), local.begin(), local.end());
+}
+
 GroundQuery groundBelow(const TriMesh& m, float x, float y, float fromZ) {
     GroundQuery g;
     float best = -1e30f;
@@ -227,11 +254,35 @@ bool LevelRoom::load(const std::string& assetRoot, const std::string& levelDir,
         }
     };
 
+    // Visual geometry is batched by (diffuse, lightmap) texture key so the
+    // renderer binds each original texture once per batch.
+    auto batchFor = [&](const std::string& diff, const std::string& lm) -> TriMesh& {
+        for (auto it = visualBatches.rbegin(); it != visualBatches.rend(); ++it)
+            if (it->diffuse == diff && it->lightmap == lm && it->vertices.size() < 48000) return *it;
+        visualBatches.emplace_back();
+        visualBatches.back().diffuse = diff; visualBatches.back().lightmap = lm;
+        return visualBatches.back();
+    };
     auto loadVisual = [&](const IrrNode& n) {
-        if (visualBatches.empty() || visualBatches.back().vertices.size() > 48000)
-            visualBatches.emplace_back();
-        loadInto(n, visualBatches.back());
-        if (visualBatches.back().empty()) visualBatches.pop_back();
+        std::string full = resolveCaseInsensitive(assetRoot + "/" + levelDir + "/" + n.meshFile);
+        Model m; std::string e;
+        if (!m.loadMesh(full, e)) return;
+        auto appendMesh = [&](const Mesh& mesh, const Mat4& x) {
+            if (mesh.subMeshes.empty()) { batchFor("", "").appendTransformed(mesh, x); return; }
+            for (const SubMesh& sm : mesh.subMeshes)
+                batchFor(sm.diffuse, sm.lightmap).appendSubMesh(mesh, sm, x);
+        };
+        if (!m.instances.empty()) {
+            const std::vector<Mat4>& W = m.worldTransforms();
+            for (const Instance& inst : m.instances) {
+                if (inst.mesh < 0 || inst.mesh >= (int)m.meshes.size()) continue;
+                Mat4 x = (inst.node >= 0 && inst.node < (int)W.size())
+                       ? mul(n.absolute, W[inst.node]) : n.absolute;
+                appendMesh(m.meshes[inst.mesh], x);
+            }
+        } else {
+            for (const Mesh& mesh : m.meshes) appendMesh(mesh, n.absolute);
+        }
     };
     for (const IrrNode& n : scene.nodes) {
         if      (n.gameType == "Geometry")   loadVisual(n);

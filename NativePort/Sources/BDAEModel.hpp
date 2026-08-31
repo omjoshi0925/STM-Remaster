@@ -48,12 +48,21 @@ struct Vertex {
     float px = 0, py = 0, pz = 0;
     float nx = 0, ny = 0, nz = 1;
     float u = 0, v = 0;
+    float u2 = 0, v2 = 0;                    // second UV set (lightmaps)
     uint8_t color[4]{255, 255, 255, 255};   // baked vertex lighting on level geometry
     uint8_t  bone[4]{0, 0, 0, 0};   // indices into Skin::joint
     float    weight[4]{0, 0, 0, 0};
 };
 
-struct SubMesh { uint32_t firstIndex = 0, indexCount = 0; };
+struct SubMesh {
+    uint32_t firstIndex = 0, indexCount = 0;
+    std::string material;    // material name (submesh +4)
+    // Resolved through material -> effect -> image-index arrays (effect +84/+88),
+    // validated against the Android engine's CMaterial::prepareMaterial.
+    std::string diffuse;     // image file name ("" = untextured / colour material)
+    std::string lightmap;    // second layer whose name contains "lightmap", if any
+    int diffuseUv = 0, lightmapUv = 1;
+};
 
 struct Mesh {
     std::string id;          // "Box01-mesh" -- instance URLs refer to this
@@ -118,7 +127,8 @@ public:
     Skin                skin;
     std::vector<Channel> channels;
     std::vector<Clip>    clips;
-    std::vector<std::string> textureNames;
+    std::vector<std::string> textureNames;   // image *filename* field (character textures)
+    std::vector<std::string> imageFiles;     // image *path* basename (level textures on disk)
     std::string version;
 
 private:

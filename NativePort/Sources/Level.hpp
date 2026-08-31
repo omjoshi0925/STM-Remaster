@@ -46,6 +46,10 @@ struct TriMesh {
     Vec3 bboxMin{ 1e30f, 1e30f, 1e30f };
     Vec3 bboxMax{ -1e30f, -1e30f, -1e30f };
     void appendTransformed(const Mesh& src, const Mat4& xform);
+    // Appends one submesh (its own vertex subset, remapped) - used to build
+    // texture-keyed visual batches.
+    void appendSubMesh(const Mesh& src, const SubMesh& sm, const Mat4& xform);
+    std::string diffuse, lightmap;   // texture key for visual batches
     bool empty() const { return indices.empty(); }
 };
 
