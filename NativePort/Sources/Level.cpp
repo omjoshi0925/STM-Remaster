@@ -256,11 +256,13 @@ bool LevelRoom::load(const std::string& assetRoot, const std::string& levelDir,
 
     // Visual geometry is batched by (diffuse, lightmap) texture key so the
     // renderer binds each original texture once per batch.
-    auto batchFor = [&](const std::string& diff, const std::string& lm) -> TriMesh& {
+    auto batchFor = [&](const std::string& diff, const std::string& lm, int duv) -> TriMesh& {
         for (auto it = visualBatches.rbegin(); it != visualBatches.rend(); ++it)
-            if (it->diffuse == diff && it->lightmap == lm && it->vertices.size() < 48000) return *it;
+            if (it->diffuse == diff && it->lightmap == lm && it->diffuseUv == duv &&
+                it->vertices.size() < 48000) return *it;
         visualBatches.emplace_back();
         visualBatches.back().diffuse = diff; visualBatches.back().lightmap = lm;
+        visualBatches.back().diffuseUv = duv;
         return visualBatches.back();
     };
     auto loadVisual = [&](const IrrNode& n) {
@@ -268,9 +270,9 @@ bool LevelRoom::load(const std::string& assetRoot, const std::string& levelDir,
         Model m; std::string e;
         if (!m.loadMesh(full, e)) return;
         auto appendMesh = [&](const Mesh& mesh, const Mat4& x) {
-            if (mesh.subMeshes.empty()) { batchFor("", "").appendTransformed(mesh, x); return; }
+            if (mesh.subMeshes.empty()) { batchFor("", "", 0).appendTransformed(mesh, x); return; }
             for (const SubMesh& sm : mesh.subMeshes)
-                batchFor(sm.diffuse, sm.lightmap).appendSubMesh(mesh, sm, x);
+                batchFor(sm.diffuse, sm.lightmap, sm.diffuseUv).appendSubMesh(mesh, sm, x);
         };
         if (!m.instances.empty()) {
             const std::vector<Mat4>& W = m.worldTransforms();

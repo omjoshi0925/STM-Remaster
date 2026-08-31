@@ -89,23 +89,99 @@ static id<MTLTexture> MakeWhite(id<MTLDevice> d) {
 }
 
 // Gameloft wraps PVRTC in a "BTEXpvr" container; unchanged from Milestone 2/3.
+static id<MTLTexture> MakeRGBA8(id<MTLDevice> d, uint32_t w, uint32_t h, const std::vector<uint8_t> &rgba) {
+    MTLTextureDescriptor *td = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
+                                                                                  width:w height:h mipmapped:NO];
+    id<MTLTexture> t = [d newTextureWithDescriptor:td];
+    if (t) [t replaceRegion:MTLRegionMake2D(0, 0, w, h) mipmapLevel:0 withBytes:rgba.data() bytesPerRow:w * 4];
+    return t;
+}
+
+// Plain Truevision TGA (title/comic art ships this way): types 2/10, 24/32-bit.
+static id<MTLTexture> LoadTGA(id<MTLDevice> d, const uint8_t *b, size_t n) {
+    if (n < 18) return nil;
+    uint8_t idLen = b[0], type = b[2], bpp = b[16], desc = b[17];
+    uint32_t w = b[12] | (b[13] << 8), h = b[14] | (b[15] << 8);
+    if (!w || !h || w > 4096 || h > 4096 || (bpp != 24 && bpp != 32) || (type != 2 && type != 10)) return nil;
+    size_t p = 18 + idLen, bytes = bpp / 8;
+    std::vector<uint8_t> rgba((size_t)w * h * 4);
+    size_t px = 0, total = (size_t)w * h;
+    auto put = [&](const uint8_t *s) {
+        rgba[px * 4 + 0] = s[2]; rgba[px * 4 + 1] = s[1]; rgba[px * 4 + 2] = s[0];
+        rgba[px * 4 + 3] = bytes == 4 ? s[3] : 255; ++px;
+    };
+    if (type == 2) {
+        if (p + total * bytes > n) return nil;
+        for (; px < total;) put(b + p + px * bytes);
+    } else {
+        while (px < total && p < n) {
+            uint8_t hdr = b[p++]; size_t cnt = (hdr & 0x7f) + 1;
+            if (hdr & 0x80) { if (p + bytes > n) break; for (size_t k = 0; k < cnt && px < total; ++k) put(b + p); p += bytes; }
+            else { for (size_t k = 0; k < cnt && px < total && p + bytes <= n; ++k) { put(b + p); p += bytes; } }
+        }
+    }
+    if (!(desc & 0x20)) {   // bottom-left origin -> flip rows
+        std::vector<uint8_t> f(rgba.size());
+        for (uint32_t y = 0; y < h; ++y) memcpy(&f[(size_t)y * w * 4], &rgba[(size_t)(h - 1 - y) * w * 4], (size_t)w * 4);
+        rgba.swap(f);
+    }
+    return MakeRGBA8(d, w, h, rgba);
+}
+
+// BTEX container: PVRTC4 (square, uploaded compressed) or uncompressed
+// 16/32-bit (RGBA4444 / RGBA5551 / RGB565 / RGBA8888 -> expanded to RGBA8).
 static id<MTLTexture> LoadPVRTC(id<MTLDevice> d, NSString *path) {
     NSData *data = [NSData dataWithContentsOfFile:path];
     if (!data || data.length < 60) return nil;
     const uint8_t *b = (const uint8_t *)data.bytes;
-    if (memcmp(b, "BTEXpvr", 7) != 0) return nil;
+    if (memcmp(b, "BTEXpvr", 7) != 0) return LoadTGA(d, b, data.length);
     uint32_t hs = rdle32(b + 8), w = rdle32(b + 12), h = rdle32(b + 16);
     uint32_t flags = rdle32(b + 24), len = rdle32(b + 28), bpp = rdle32(b + 32);
-    if (hs < 52 || !w || !h || bpp != 4) return nil;
+    if (hs < 52 || !w || !h) return nil;
     size_t p = hs;
     if (p + 8 <= data.length && memcmp(b + p, "PVR!", 4) == 0) p += 8;
-    if (p + len > data.length || (flags & 0xff) != 0x19) return nil;
-    MTLPixelFormat f = (flags & 0x8000) ? MTLPixelFormatPVRTC_RGBA_4BPP : MTLPixelFormatPVRTC_RGB_4BPP;
-    MTLTextureDescriptor *td = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:f
-                                                                                  width:w height:h mipmapped:NO];
-    id<MTLTexture> t = [d newTextureWithDescriptor:td];
-    if (t) [t replaceRegion:MTLRegionMake2D(0, 0, w, h) mipmapLevel:0 withBytes:b + p bytesPerRow:0];
-    return t;
+    if (p + len > data.length) return nil;
+    uint32_t fmt = flags & 0xff;
+    if (fmt == 0x19 && bpp == 4) {
+        MTLPixelFormat f = (flags & 0x8000) ? MTLPixelFormatPVRTC_RGBA_4BPP : MTLPixelFormatPVRTC_RGB_4BPP;
+        if (w != h) return nil;   // Metal PVRTC must be square
+        MTLTextureDescriptor *td = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:f
+                                                                                      width:w height:h mipmapped:NO];
+        id<MTLTexture> t = [d newTextureWithDescriptor:td];
+        if (t) [t replaceRegion:MTLRegionMake2D(0, 0, w, h) mipmapLevel:0 withBytes:b + p bytesPerRow:0];
+        return t;
+    }
+    std::vector<uint8_t> rgba((size_t)w * h * 4);
+    const uint8_t *src = b + p;
+    size_t total = (size_t)w * h;
+    if (fmt == 0x10 && bpp == 16) {            // OGL_RGBA_4444: R hi nibble ... A lo nibble
+        if (total * 2 > len) return nil;
+        for (size_t i = 0; i < total; ++i) {
+            uint16_t v = (uint16_t)(src[i * 2] | (src[i * 2 + 1] << 8));
+            rgba[i*4+0] = (v >> 12) * 17; rgba[i*4+1] = ((v >> 8) & 15) * 17;
+            rgba[i*4+2] = ((v >> 4) & 15) * 17; rgba[i*4+3] = (v & 15) * 17;
+        }
+    } else if (fmt == 0x11 && bpp == 16) {     // OGL_RGBA_5551
+        if (total * 2 > len) return nil;
+        for (size_t i = 0; i < total; ++i) {
+            uint16_t v = (uint16_t)(src[i * 2] | (src[i * 2 + 1] << 8));
+            rgba[i*4+0] = (uint8_t)(((v >> 11) & 31) * 255 / 31); rgba[i*4+1] = (uint8_t)(((v >> 6) & 31) * 255 / 31);
+            rgba[i*4+2] = (uint8_t)(((v >> 1) & 31) * 255 / 31); rgba[i*4+3] = (v & 1) ? 255 : 0;
+        }
+    } else if (fmt == 0x13 && bpp == 16) {     // OGL_RGB_565
+        if (total * 2 > len) return nil;
+        for (size_t i = 0; i < total; ++i) {
+            uint16_t v = (uint16_t)(src[i * 2] | (src[i * 2 + 1] << 8));
+            rgba[i*4+0] = (uint8_t)(((v >> 11) & 31) * 255 / 31); rgba[i*4+1] = (uint8_t)(((v >> 5) & 63) * 255 / 63);
+            rgba[i*4+2] = (uint8_t)((v & 31) * 255 / 31); rgba[i*4+3] = 255;
+        }
+    } else if (fmt == 0x12 && bpp == 32) {     // OGL_RGBA_8888
+        if (total * 4 > len) return nil;
+        memcpy(rgba.data(), src, total * 4);
+    } else {
+        return nil;
+    }
+    return MakeRGBA8(d, w, h, rgba);
 }
 
 static const char *const kShaderSource = R"(
@@ -181,7 +257,7 @@ fragment half4 frag(Out i                   [[stage_in]],
                     texture2d<half> lm      [[texture(1)]],
                     sampler s               [[sampler(0)]],
                     constant U &u           [[buffer(1)]]) {
-    half4 tex = t.sample(s, i.uv);
+    half4 tex = t.sample(s, (u.misc.x > 1.5) ? i.uv2 : i.uv);   // diffuse may declare UV set 1
     if (u.misc.w > 0.5 && tex.a < 0.5h) discard_fragment();     // alpha-tested foliage/fences
     half3 base = (u.misc.x > 0.5) ? tex.rgb : half3(u.tint.rgb);
     if (u.misc.z > 0.5) base *= lm.sample(s, i.uv2).rgb * 2.0h;  // original lightmap layer (M2)
@@ -530,7 +606,8 @@ fragment half4 frag(Out i                   [[stage_in]],
         for (NSUInteger b = 0; b < _levelCounts.size(); ++b) {
             int fl = (b < _levelFlags.size()) ? _levelFlags[b] : 0;
             // misc = {hasTexture, bake blend, hasLightmap, alphaTest}
-            u.misc = (simd_float4){(fl & 1) ? 1.0f : 0.0f, 0.75f, (fl & 2) ? 1.0f : 0.0f, (fl & 4) ? 1.0f : 0.0f};
+            // misc.x: 0 none, 1 texture on uv0, 2 texture on uv1
+            u.misc = (simd_float4){(fl & 1) ? ((fl & 8) ? 2.0f : 1.0f) : 0.0f, 0.75f, (fl & 2) ? 1.0f : 0.0f, (fl & 4) ? 1.0f : 0.0f};
             [enc setVertexBytes:&u length:sizeof(u) atIndex:1];
             [enc setFragmentBytes:&u length:sizeof(u) atIndex:1];
             [enc setFragmentTexture:(b < _levelTex.count ? _levelTex[b] : _white) atIndex:0];
@@ -621,9 +698,9 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
         if (_modBarFrame >= 0) {
             const bdae::SpriteModule &bar = mod(_modBarFrame);
             float bw = 3.2f * bar.w * sc, bh = 3.2f * bar.h * sc;
-            quad(80 * sc, 28 * sc, bw * fmaxf(0.02f, _heroHP / 100.0f), bh,
+            quad(80 * sc, 118 * sc, bw * fmaxf(0.02f, _heroHP / 100.0f), bh,
                  bar, 90, 230, 60, 255);
-            quad(80 * sc, 28 * sc, bw, bh, bar, 255, 255, 255, 90);
+            quad(80 * sc, 118 * sc, bw, bh, bar, 255, 255, 255, 90);
         }
         // pause square (top-left corner; also the atlas-sheet toggle zone)
         if (_modButton >= 0)
@@ -715,6 +792,19 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
     id<MTLTexture> cached = _texCache[key];
     if (cached) return cached == (id)NSNull.null ? nil : cached;
     NSString *path = _texIndex[key];
+    if (!path) {   // "42_mall_glass2.tga" -> "42_mall_glass.tga"
+        NSString *stem = [key stringByDeletingPathExtension];
+        while (stem.length && [stem hasSuffix:@"1"]) stem = [stem substringToIndex:stem.length - 1];
+        NSString *stripped = [stem stringByReplacingOccurrencesOfString:@"[0-9]+$" withString:@""
+                                                                options:NSRegularExpressionSearch range:NSMakeRange(0, stem.length)];
+        path = _texIndex[[stripped stringByAppendingPathExtension:key.pathExtension]];
+    }
+    if (!path) {   // "13_building.tga" -> any "*building.tga" (leading pack/slot digits differ)
+        NSString *core = [key stringByReplacingOccurrencesOfString:@"^[_0-9]+" withString:@""
+                                                           options:NSRegularExpressionSearch range:NSMakeRange(0, key.length)];
+        if (core.length > 5)
+            for (NSString *k in _texIndex) if ([k hasSuffix:core]) { path = _texIndex[k]; break; }
+    }
     id<MTLTexture> t = path ? LoadPVRTC(_device, path) : nil;
     _texCache[key] = t ? t : (id)NSNull.null;
     if (!t) NSLog(@"[TotalMayhem] texture missing: %s", name.c_str());
@@ -909,7 +999,7 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
             {
                 id<MTLTexture> dt = [self levelTextureNamed:lv.diffuse];
                 id<MTLTexture> lt = [self levelTextureNamed:lv.lightmap];
-                int flags = (dt ? 1 : 0) | (lt ? 2 : 0);
+                int flags = (dt ? 1 : 0) | (lt ? 2 : 0) | (lv.diffuseUv == 1 ? 8 : 0);
                 NSString *low = [NSString stringWithUTF8String:lv.diffuse.c_str()].lowercaseString;
                 if ([low containsString:@"alphatest"]) flags |= 4;
                 [_levelTex addObject:(dt ? dt : _white)];

@@ -50,6 +50,7 @@ struct TriMesh {
     // texture-keyed visual batches.
     void appendSubMesh(const Mesh& src, const SubMesh& sm, const Mat4& xform);
     std::string diffuse, lightmap;   // texture key for visual batches
+    int diffuseUv = 0;               // UV set the diffuse layer declares (1 = second set)
     bool empty() const { return indices.empty(); }
 };
 

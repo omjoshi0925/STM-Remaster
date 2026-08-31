@@ -328,3 +328,14 @@ assumed), alpha-test threshold, texture memory with all packs mounted.
 Spider-Man's own effect carries no layer arrays (engine falls back to image 0;
 the renderer already does the same). Textures shipped only in level packs not
 extracted into Assets render white with baked vertex colour until extracted.
+
+### Milestone 10.1 — first textured frame follow-ups (2026-08-30)
+Device log confirmed the binding (all 284 textures indexed, 13 unresolved
+by exact name). Texture loader now decodes every format the packs ship:
+PVRTC4 (square, compressed upload), uncompressed BTEX RGBA4444 / RGBA5551 /
+RGB565 / RGBA8888 (expanded to RGBA8 — interface.tga and mainmenu.tga are
+RGBA4444, which is why the HUD never drew), and plain Truevision TGA types
+2/10 (paper_title art). Fuzzy name resolution mirrors the engine's %s_%d
+variants (trailing variant digits, leading pack/slot digits). Diffuse layers
+that declare UV set 1 are sampled with the second UV set. Health bar moved
+below the debug label.
