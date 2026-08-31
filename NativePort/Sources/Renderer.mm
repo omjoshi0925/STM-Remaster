@@ -15,6 +15,7 @@
 #include <memory>
 #include <cmath>
 #include <cstring>
+#include <cstdio>
 #include <string>
 #include <vector>
 #include <map>
@@ -27,6 +28,7 @@ using namespace bdae;
 //   Bip01_L_Foot y = +4.95, Bip01_L_Toe0 y = -8.30
 static const float kModelYawOffset = (float)M_PI_2;
 
+#define TM_DEBUG_HUD 0   // 1 = show the developer status line
 static const NSUInteger kMaxBones = 38;
 static const NSUInteger kBoneSlot = 2560;      // 40 bones * 64 B, 256-aligned
 static const NSUInteger kFramesInFlight = 3;   // bone buffers are rewritten per frame
@@ -322,6 +324,9 @@ fragment half4 frag(Out i                   [[stage_in]],
     bdae::StringTable _strings;
     std::string _assetRootStr;
     id<MTLTexture> _paperTex;
+    id<MTLTexture> _fontAtlas;                 // font_outline_big.tga: the yellow outlined UI font
+    struct Popup { float x, y, z; int value; uint32_t bornMs; };
+    std::vector<Popup> _popups;
     UILabel *_flowLabel;
     UILabel *_skipLabel;
     MTKView *_mtkView;
@@ -492,6 +497,8 @@ fragment half4 frag(Out i                   [[stage_in]],
         if (_ui.load(assetRoot + "/sprites/interface.bsprite", uerr)) {
             NSString *ap = [NSString stringWithFormat:@"%s/sprites/interface.tga", assetRoot.c_str()];
             _uiAtlas = LoadPVRTC(_device, ap);
+            _fontAtlas = LoadPVRTC(_device, [NSString stringWithFormat:@"%s/sprites/font_outline_big.tga", assetRoot.c_str()]);
+            NSLog(@"[TotalMayhem] HUD atlas %s, font atlas %s", _uiAtlas ? "ok" : "FAILED", _fontAtlas ? "ok" : "FAILED");
             // Best-guess module roles by shape until visually mapped:
             int bestSq = -1, bestPuck = -1, bestBtn = -1, bestBar = -1;
             for (int i = 0; i < (int)_ui.modules.size(); ++i) {
@@ -513,6 +520,7 @@ fragment half4 frag(Out i                   [[stage_in]],
         _paperTex = LoadPVRTC(_device, pp);
     }
     _mtkView = view;
+    _label.hidden = !TM_DEBUG_HUD;
     _flowLabel = [[UILabel alloc] initWithFrame:view.bounds];
     _flowLabel.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     _flowLabel.textAlignment = NSTextAlignmentCenter;
@@ -593,19 +601,24 @@ fragment half4 frag(Out i                   [[stage_in]],
     if (playing) {
         int hits = _fists.update(nowMs, heroPos, _actor ? _actor->yaw() : 0.0f, _foes);
         _score += hits * 10;
+        if (hits > 0) _popups.push_back({heroPos.x, heroPos.y, heroPos.z + 190.0f, hits * 10, nowMs});
         if (_fists.justStruck && _actor) {
             float fx = cosf(_actor->yaw()), fy = sinf(_actor->yaw());
             for (PropInst &p : _props) {
                 if (!p.alive || !p.destructible) continue;
                 float dx = p.x - heroPos.x, dy = p.y - heroPos.y, d = sqrtf(dx * dx + dy * dy);
-                if (d < 240.0f && (d < 1.0f || (dx * fx + dy * fy) / d > 0.2f)) { p.alive = false; _score += 50; }
+                if (d < 240.0f && (d < 1.0f || (dx * fx + dy * fy) / d > 0.2f)) {
+                    p.alive = false; _score += 50; _popups.push_back({p.x, p.y, p.z + 120.0f, 50, nowMs});
+                }
             }
         }
         for (size_t i = 0; i < _bonusTaken.size(); ++i) {
             if (_bonusTaken[i]) continue;
             const Vec3 &b = _room->bonuses[i];
             float dx = b.x - heroPos.x, dy = b.y - heroPos.y;
-            if (dx * dx + dy * dy < 150.0f * 150.0f && fabsf(b.z - heroPos.z) < 300.0f) { _bonusTaken[i] = true; _score += 25; }
+            if (dx * dx + dy * dy < 150.0f * 150.0f && fabsf(b.z - heroPos.z) < 300.0f) {
+                _bonusTaken[i] = true; _score += 25; _popups.push_back({b.x, b.y, b.z + 100.0f, 25, nowMs});
+            }
         }
         if (_heroHP <= 0) _flow.onDeath(nowMs);
         else _flow.updatePlaying(heroPos, nowMs);
@@ -752,112 +765,124 @@ fragment half4 frag(Out i                   [[stage_in]],
 struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
 
 - (void)drawHUD:(id<MTLRenderCommandEncoder>)enc view:(MTKView *)view {
-    if (!_spritePipe || !_uiAtlas || _ui.modules.empty()) return;
+    if (!_spritePipe) return;
     float W = (float)view.drawableSize.width, H = (float)view.drawableSize.height;
-    float sc = H / 768.0f;   // reference layout height
+    float sc = H / 768.0f;   // original layout space: 768 px tall
 
-    std::vector<SpriteVert> verts;
-    verts.reserve(6 * 96);
+    // ---- authentic sprites, rectangles verified visually on the decoded interface.tga
+    static const bdae::SpriteModule kPause{478, 194, 30, 36}, kPortrait{467, 65, 41, 62},
+        kHpFrame{279, 446, 139, 18}, kHpFill{92, 476, 133, 16}, kWebMeter{0, 270, 212, 32},
+        kKnob{177, 212, 50, 52}, kRing{345, 4, 58, 58}, kBtn{59, 212, 57, 52},
+        kFist{355, 303, 38, 40}, kFistHot{395, 303, 35, 40}, kDodge{471, 303, 30, 36}, kWeb{230, 302, 38, 40},
+        kToken{262, 212, 52, 52}, kFull{0, 0, 4, 4};
+    // font_outline_big.tga digits (row y=34, h=24) and '+'
+    static const uint16_t kDigX[10] = {20, 44, 60, 81, 104, 127, 148, 170, 192, 214};
+    static const uint16_t kDigW[10] = {18, 11, 18, 18, 18, 18, 16, 18, 18, 17};
+
+    std::vector<SpriteVert> verts; verts.reserve(6 * 256);
+    struct Seg { NSUInteger start, count; id<MTLTexture> tex; };
+    std::vector<Seg> segs;
+    auto useTex = [&](id<MTLTexture> t) {
+        if (!segs.empty() && segs.back().tex == t) return;
+        if (!segs.empty()) segs.back().count = verts.size() - segs.back().start;
+        segs.push_back({verts.size(), 0, t});
+    };
     auto quad = [&](float x, float y, float w, float h, const bdae::SpriteModule &m,
                     uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
-        float u0 = m.x / 512.0f, v0 = m.y / 512.0f;
-        float u1 = (m.x + m.w) / 512.0f, v1 = (m.y + m.h) / 512.0f;
-        SpriteVert q[6] = {
-            {{x, y},         {u0, v0}, {r, g, b, a}},
-            {{x + w, y},     {u1, v0}, {r, g, b, a}},
-            {{x + w, y + h}, {u1, v1}, {r, g, b, a}},
-            {{x, y},         {u0, v0}, {r, g, b, a}},
-            {{x + w, y + h}, {u1, v1}, {r, g, b, a}},
-            {{x, y + h},     {u0, v1}, {r, g, b, a}},
-        };
+        float u0 = m.x / 512.0f, v0 = m.y / 512.0f, u1 = (m.x + m.w) / 512.0f, v1 = (m.y + m.h) / 512.0f;
+        SpriteVert q[6] = {{{x, y}, {u0, v0}, {r, g, b, a}}, {{x + w, y}, {u1, v0}, {r, g, b, a}},
+                           {{x + w, y + h}, {u1, v1}, {r, g, b, a}}, {{x, y}, {u0, v0}, {r, g, b, a}},
+                           {{x + w, y + h}, {u1, v1}, {r, g, b, a}}, {{x, y + h}, {u0, v1}, {r, g, b, a}}};
         verts.insert(verts.end(), q, q + 6);
     };
-    auto mod = [&](int i) -> const bdae::SpriteModule & { return _ui.modules[i]; };
+    auto circle = [&](float cx, float cy, float rad, const bdae::SpriteModule &m, uint8_t a) {
+        quad(cx - rad, cy - rad, 2 * rad, 2 * rad, m, 255, 255, 255, a);
+    };
+    uint32_t nowMs = (uint32_t)(CACurrentMediaTime() * 1000.0);
 
-    if (_showAtlasSheet) {
-        // Contact sheet: every module in index order, 8 per row, for mapping.
-        float pad = 6 * sc, cx = pad, cy = pad, rowH = 0;
-        for (int i = 0; i < (int)_ui.modules.size(); ++i) {
-            const bdae::SpriteModule &m = mod(i);
-            float w = m.w * sc, h = m.h * sc;
-            if (cx + w > W - pad) { cx = pad; cy += rowH + pad; rowH = 0; }
-            quad(cx, cy, w, h, m, 255, 255, 255, 255);
-            cx += w + pad; rowH = fmaxf(rowH, h);
-        }
-    } else {
-        // Real HUD sprites, rectangles measured from the decoded interface atlas.
-        static const bdae::SpriteModule kPuck{173, 218, 50, 51}, kButton{120, 218, 50, 51},
-            kPortrait{42, 220, 67, 50}, kBarBg{183, 404, 130, 18}, kBarFrame{142, 429, 130, 17},
-            kWebBar{35, 380, 138, 18};
-        if (_flow.phase == bdae::GameFlow::PLAYING || _paused) {
-            // pause (top-left), portrait, health bar, web meter — reference layout at 768 px height
-            quad(18 * sc, 18 * sc, 52 * sc, 52 * sc, kButton, 255, 255, 255, _paused ? 255 : 200);
-            quad(78 * sc, 12 * sc, 120 * sc, 90 * sc, kPortrait, 255, 255, 255, 255);
-            quad(204 * sc, 34 * sc, 470 * sc, 30 * sc, kBarBg, 255, 255, 255, 230);
-            quad(208 * sc, 37 * sc, 462 * sc * fmaxf(0.02f, _heroHP / 100.0f), 24 * sc, kBarFrame, 60, 230, 40, 255);
-            quad(204 * sc, 70 * sc, 400 * sc, 20 * sc, kWebBar, 255, 255, 255, 220);
-            // virtual stick while touching
-            if (_moveTouchActive > 0) {
-                float R = 96 * sc;
-                float bx = (float)_moveOriginX * (W / fmaxf(1.0f, (float)UIScreen.mainScreen.bounds.size.width));
-                float by = (float)_moveOriginY * (H / fmaxf(1.0f, (float)UIScreen.mainScreen.bounds.size.height));
-                quad(bx - R * 1.35f, by - R * 1.35f, 2.7f * R, 2.7f * R, kPuck, 255, 255, 255, 60);
-                float r2 = 48 * sc;
-                quad(bx + _stickX * R * 0.7f - r2, by - _stickY * R * 0.7f - r2, 2 * r2, 2 * r2, kPuck, 255, 255, 255, 235);
+    // ---- flow overlays (video/title/death/complete) and the comic page
+    if (_flow.phase != bdae::GameFlow::PLAYING) {
+        useTex(_white);
+        quad(0, 0, W, H, kFull, 6, 6, 10, _flow.phase == bdae::GameFlow::COMIC ? 255 : 225);
+        if (_flow.phase == bdae::GameFlow::COMIC) {
+            id<MTLTexture> page = [self comicPage:_flow.comicFirst + _flow.comicIndex];
+            if (page) {
+                float t = fminf(1.0f, (float)(nowMs - _flow.comicPageStartMs) / 4500.0f);
+                float ph = H * 0.94f * (1.04f + 0.14f * t), pw = ph;
+                useTex(page);
+                quad((W - pw) * 0.5f, (H - ph) * 0.5f, pw, ph, bdae::SpriteModule{0, 0, 512, 512}, 255, 255, 255, 255);
             }
-            // spider-sense: a pulsing red ring over every enemy that has noticed you
-            float pulse = 0.55f + 0.45f * sinf((float)CACurrentMediaTime() * 6.0f);
-            for (const bdae::EnemyActor &f : _foes) {
-                if (!f.alive() || f.state == bdae::EnemyActor::IDLE) continue;
-                float sx, sy;
-                if (!WorldToScreen(_lastVP, W, H, f.x, f.y, f.z + 200.0f, sx, sy)) continue;
-                float rr = (34 + 10 * pulse) * sc;
-                quad(sx - rr, sy - rr, 2 * rr, 2 * rr, kButton, 255, 60, 40, (uint8_t)(120 + 100 * pulse));
-            }
-            // bonus pickups: floating spider tokens at the original Bonus positions
-            for (size_t i = 0; i < _bonusTaken.size(); ++i) {
-                if (_bonusTaken[i]) continue;
-                const Vec3 &b = _room->bonuses[i];
-                float sx, sy;
-                if (!WorldToScreen(_lastVP, W, H, b.x, b.y, b.z + 60.0f + 15.0f * sinf((float)CACurrentMediaTime() * 3.0f + i), sx, sy)) continue;
-                float rr = 22 * sc;
-                quad(sx - rr, sy - rr, 2 * rr, 2 * rr, kPortrait, 255, 255, 255, 235);
-            }
-            // action buttons bottom-right: punch, jump/dodge (stub), web (stub)
-            float bs = 116 * sc;
-            quad(W - 3.05f * bs, H - 2.35f * bs, bs, bs, kButton, 255, 255, 255, 240);
-            quad(W - 1.55f * bs, H - 2.55f * bs, bs, bs, kButton, 255, 255, 255, 150);
-            quad(W - 2.1f * bs, H - 1.25f * bs, bs, bs, kButton, 255, 255, 255, 150);
         }
     }
-    // full-screen flow overlays drawn beneath nothing else (segments by texture)
-    NSUInteger hudCount = verts.size();
-    NSUInteger darkStart = verts.size();
-    if (_flow.phase != bdae::GameFlow::PLAYING && !_showAtlasSheet) {
-        bdae::SpriteModule full{0, 0, 4, 4};   // any opaque texel region of _white
-        quad(0, 0, W, H, full, 6, 6, 10, _flow.phase == bdae::GameFlow::COMIC ? 255 : 225);
-    }
-    NSUInteger darkCount = verts.size() - darkStart;
-    NSUInteger paperStart = verts.size();
-    id<MTLTexture> pageTex = nil;
-    if (_flow.phase == bdae::GameFlow::COMIC && !_showAtlasSheet) {
-        pageTex = [self comicPage:_flow.comicFirst + _flow.comicIndex];
-        if (pageTex) {
-            // Ken Burns: slow push-in with a drift, like the original montage
-            float t = fminf(1.0f, (float)((uint32_t)(CACurrentMediaTime() * 1000.0) - _flow.comicPageStartMs) / 4500.0f);
-            float scale = 1.04f + 0.14f * t;
-            float ph = H * 0.94f * scale, pw = ph;
-            float cx = W * 0.5f + (0.5f - (float)((_flow.comicIndex & 1) ? 1 : 0)) * 60.0f * sc * t;
-            bdae::SpriteModule pm{0, 0, 512, 512};
-            quad(cx - pw * 0.5f, (H - ph) * 0.5f, pw, ph, pm, 255, 255, 255, 255);
-        }
-    }
-    NSUInteger paperCount = verts.size() - paperStart;
-    _paperTex = pageTex;
 
+    if (_uiAtlas && (_flow.phase == bdae::GameFlow::PLAYING || _paused)) {
+        useTex(_uiAtlas);
+        // top-left cluster: pause bubble, portrait, health frame + fill, web meter
+        quad(11 * sc, 16 * sc, 48 * sc, 56 * sc, kPause, 255, 255, 255, 255);
+        quad(74 * sc, 20 * sc, 80 * sc, 120 * sc, kPortrait, 255, 255, 255, 255);
+        quad(170 * sc, 34 * sc, 404 * sc, 40 * sc, kHpFrame, 255, 255, 255, 255);
+        quad(178 * sc, 40 * sc, 386 * sc * fmaxf(0.0f, _heroHP / 100.0f), 28 * sc, kHpFill, 255, 255, 255, 255);
+        quad(172 * sc, 80 * sc, 356 * sc, 34 * sc, kWebMeter, 255, 255, 255, 235);
+        // joystick: fixed home like the original, knob follows the stick
+        float jx = 175 * sc, jy = H - 135 * sc, R = 92 * sc;
+        circle(jx, jy, R, kRing, 200);
+        circle(jx + _stickX * R * 0.75f, jy - _stickY * R * 0.75f, 64 * sc, kKnob, 255);
+        // action buttons: fist, dodge, web (glyphs are separate white sprites)
+        float bx1 = W - 266 * sc, by1 = 511 * sc, bx2 = W - 96 * sc, bx3 = W - 319 * sc, by3 = 665 * sc, br = 70 * sc;
+        circle(bx1, by1, br, kBtn, 255);
+        circle(bx2, by1, br, kBtn, 255);
+        circle(bx3, by3, br, kBtn, 255);
+        bool punching = _fists.punching(nowMs);
+        const bdae::SpriteModule &fist = punching ? kFistHot : kFist;
+        quad(bx1 - 32 * sc, by1 - 34 * sc, 64 * sc, 68 * sc, fist, 255, 255, 255, 255);
+        quad(bx2 - 26 * sc, by1 - 32 * sc, 52 * sc, 64 * sc, kDodge, 255, 255, 255, 255);
+        quad(bx3 - 32 * sc, by3 - 34 * sc, 64 * sc, 68 * sc, kWeb, 255, 255, 255, 255);
+        // collectible tokens at the original Bonus positions
+        for (size_t i = 0; i < _bonusTaken.size(); ++i) {
+            if (_bonusTaken[i]) continue;
+            const Vec3 &b = _room->bonuses[i]; float sx, sy;
+            if (!WorldToScreen(_lastVP, W, H, b.x, b.y, b.z + 70.0f + 12.0f * sinf((float)CACurrentMediaTime() * 3.0f + i), sx, sy)) continue;
+            circle(sx, sy, 22 * sc, kToken, 240);
+        }
+        // spider-sense: the ticked ring, red, pulsing over enemies that have noticed you
+        float pulse = 0.5f + 0.5f * sinf((float)CACurrentMediaTime() * 6.0f);
+        for (const bdae::EnemyActor &f : _foes) {
+            if (!f.alive() || f.state == bdae::EnemyActor::IDLE) continue;
+            float sx, sy;
+            if (!WorldToScreen(_lastVP, W, H, f.x, f.y, f.z + 210.0f, sx, sy)) continue;
+            float rr = (30 + 8 * pulse) * sc;
+            quad(sx - rr, sy - rr, 2 * rr, 2 * rr, kRing, 255, 70, 60, (uint8_t)(140 + 100 * pulse));
+        }
+        // score popups: "+N" in the original outlined font, rising and fading
+        if (_fontAtlas) {
+            useTex(_fontAtlas);
+            for (size_t i = 0; i < _popups.size();) {
+                const Popup &pp = _popups[i];
+                uint32_t age = nowMs - pp.bornMs;
+                if (age > 1300) { _popups.erase(_popups.begin() + i); continue; }
+                float sx, sy;
+                if (WorldToScreen(_lastVP, W, H, pp.x, pp.y, pp.z, sx, sy)) {
+                    float rise = age / 1300.0f;
+                    uint8_t a = (uint8_t)(255 * (1.0f - rise * rise));
+                    float gh = 46 * sc, gs = gh / 24.0f;   // glyph height 24 in the atlas
+                    char buf[16]; snprintf(buf, sizeof buf, "+%d", pp.value);
+                    float total = 0;
+                    for (char *c = buf; *c; ++c) total += (*c == '+' ? 18 : kDigW[*c - '0']) * gs + 2 * sc;
+                    float x = sx - total * 0.5f, y = sy - 90.0f * sc * rise - gh;
+                    for (char *c = buf; *c; ++c) {
+                        bdae::SpriteModule g = (*c == '+') ? bdae::SpriteModule{188, 8, 18, 24}
+                                                           : bdae::SpriteModule{kDigX[*c - '0'], 34, kDigW[*c - '0'], 24};
+                        quad(x, y, g.w * gs, gh, g, 255, 255, 255, a);
+                        x += g.w * gs + 2 * sc;
+                    }
+                }
+                ++i;
+            }
+        }
+    }
     if (verts.empty()) return;
-    NSUInteger bytes = verts.size() * sizeof(SpriteVert);
-    NSUInteger cap = 512 * 6 * 20;
+    if (!segs.empty()) segs.back().count = verts.size() - segs.back().start;
+    NSUInteger bytes = verts.size() * sizeof(SpriteVert), cap = 512 * 6 * 20;
     if (bytes > cap) { verts.resize(cap / sizeof(SpriteVert)); bytes = cap; }
     NSUInteger off = (_frameIdx % kFramesInFlight) * cap;
     memcpy((uint8_t *)_spriteVB.contents + off, verts.data(), bytes);
@@ -866,17 +891,10 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
     [enc setDepthStencilState:_noDepth];
     [enc setVertexBuffer:_spriteVB offset:off atIndex:0];
     [enc setVertexBytes:&vpsz length:sizeof(vpsz) atIndex:1];
-    if (darkCount) {
-        [enc setFragmentTexture:_white atIndex:0];
-        [enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:darkStart vertexCount:darkCount];
-    }
-    if (paperCount) {
-        [enc setFragmentTexture:_paperTex atIndex:0];
-        [enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:paperStart vertexCount:paperCount];
-    }
-    if (hudCount) {
-        [enc setFragmentTexture:_uiAtlas atIndex:0];
-        [enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:hudCount];
+    for (const Seg &sg : segs) {
+        if (!sg.count || sg.start + sg.count > verts.size()) continue;
+        [enc setFragmentTexture:sg.tex atIndex:0];
+        [enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:sg.start vertexCount:sg.count];
     }
     [enc setDepthStencilState:_depth];
 }
@@ -1382,10 +1400,14 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
     // top-left corner: single tap = pause, double-height zone toggles atlas sheet
     if (p.x < 44 && p.y < 44) { _paused = !_paused; return; }
     if (p.x < 30 && p.y > 60 && p.y < 100) { _showAtlasSheet = !_showAtlasSheet; return; }
-    // bottom-right action zone = punch (matches the drawn buttons)
-    if (p.x > sw * 0.72 && p.y > sh * 0.55) {
-        _fists.tryPunch((uint32_t)(CACurrentMediaTime() * 1000.0));
-        return;
+    // the three action buttons (layout in 768-pt space, mirrored in drawHUD)
+    {
+        CGFloat k = sh / 768.0;
+        CGPoint fist = CGPointMake(sw - 266 * k, 511 * k), dodge = CGPointMake(sw - 96 * k, 511 * k), web = CGPointMake(sw - 319 * k, 665 * k);
+        CGFloat r = 82 * k;
+        auto inside = [&](CGPoint c) { return hypot(p.x - c.x, p.y - c.y) < r; };
+        if (inside(fist)) { _fists.tryPunch((uint32_t)(CACurrentMediaTime() * 1000.0)); return; }
+        if (inside(dodge) || inside(web)) return;   // dodge / web: not implemented yet
     }
     CGFloat half = sw * 0.5;
     if (p.x < half && _moveTouchActive < 0) {

@@ -391,3 +391,21 @@ the chapter card. Comic pages remain for mid-level beats (Comic nodes) and
 the collection. Input hardening after a movement report: pause zone shrunk
 to 44 pt, contact-sheet toggle narrowed, pause reset on level load, FPS and
 PAUSED readout in the debug line.
+
+### Milestone 12.2 — authentic HUD restoration (2026-08-30)
+Root cause of the "red circles everywhere": drawHUD used atlas rectangles
+chosen by a blob scan; the rectangle used for bonus tokens (and the portrait)
+was actually a red button face beside a "6+" glyph, drawn at all 93 Bonus
+positions. Fix: the interface.tga atlas was decoded to an image and inspected
+(docs/interface_atlas_sheet.png, docs/hud_sprite_verification.png); every HUD
+element now uses its verified original sprite: pause bubble (478,194),
+portrait (467,65), health frame (279,446) + green honeycomb fill (92,476),
+web-strand meter (0,270), blue knob (177,212), ticked ring (345,4), red button
+face (59,212), white fist/dodge/web glyphs (355,303 / 471,303 / 230,302) with
+the red fist for the pressed state, gold spider token (262,212) for bonuses.
+Score popups ("+N") use the original outlined font font_outline_big.tga
+(digit table segmented from the atlas). Layout mirrors the reference frame in
+768-pt space anchored to the screen edges; button touch circles match.
+Developer status line is off unless TM_DEBUG_HUD=1. Assets/bundle audit:
+interface.tga, interface.bsprite, font_outline_big.tga are all in the
+SpiderManTotalMayhem resources; the break was renderer-side only.
