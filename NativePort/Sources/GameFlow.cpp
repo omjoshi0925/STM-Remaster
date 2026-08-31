@@ -22,8 +22,13 @@ bool StringTable::load(const std::string& mapPath, const std::string& dataPath,
 
 void GameFlow::beginLevel(const LevelRoom& lvl, int index, uint32_t nowMs) {
     levelIndex = index;
-    phase = TITLE;
+    phase = COMIC;
     phaseStartMs = nowMs;
+    static const int kFirstPage[] = {1, 19, 41, 69, 99, 116, 131, 147, 162, 167, 175, 188};
+    comicFirst = (index >= 0 && index < 12) ? kFirstPage[index] : 1;
+    comicCount = 4;
+    comicIndex = 0;
+    comicPageStartMs = nowMs;
     checkpoint = lvl.spawn;
     checkpointYaw = lvl.spawnYaw;
     checkpointsAll.clear();
@@ -47,6 +52,13 @@ bool GameFlow::updatePlaying(const Vec3& hero, uint32_t) {
         if (!visited[i]) all = false;
     }
     if (all && phase == PLAYING) { phase = COMPLETE; return true; }
+    return false;
+}
+
+bool GameFlow::advanceComic(uint32_t nowMs) {
+    ++comicIndex;
+    comicPageStartMs = nowMs;
+    if (comicIndex >= comicCount) { showTitle(nowMs); return true; }
     return false;
 }
 

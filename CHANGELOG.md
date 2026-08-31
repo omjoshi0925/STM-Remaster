@@ -339,3 +339,26 @@ RGBA4444, which is why the HUD never drew), and plain Truevision TGA types
 variants (trailing variant digits, leading pack/slot digits). Diffuse layers
 that declare UV set 1 are sampled with the second UV set. Health bar moved
 below the debug label.
+
+## Milestone 11 — the original presentation (2026-08-30)
+
+### IMPLEMENTED
+Boot flow now mirrors the original: comic-panel montage (the real comic pages
+from comic1/comic2.pack, plain TGA, slow push-in + drift, tap to advance,
+SKIP zone top-right, auto-advance) -> chapter card with the original level
+name from xlsStrings (STR_LEVELNEW_n_NAME) -> gameplay. Skybox: the level's
+lvl01_sky.bdae with its own textures, drawn first and following the camera.
+Daylight: baked vertex colours applied as a 2x modulate on textured level
+batches (measured mean 0.66), untouched for characters and lightmapped
+geometry. HUD rebuilt from the atlas's real sprites (rectangles measured by
+alpha-blob detection on the decoded RGBA4444 interface.tga): pause, portrait,
+health bar bg/fill, web meter, joystick puck + ring, three action buttons in
+the reference layout.
+
+### KNOWN LIMITATIONS
+Level 1's montage starts at page 1 (certain); later levels' start pages are
+estimated from Comic-node share. The 18 in-level Comic trigger nodes do not
+yet pop pages mid-level. Chapter card and SKIP use the system font (original
+font atlases are RGBA4444 and now decode; glyph tables next). No in-engine
+intro cinematic yet (camera_lv1_* / .cff). Button glyphs not yet overlaid.
+Gameloft-Logo.m4v / Spiderman-Trailer.m4v boot videos not played.

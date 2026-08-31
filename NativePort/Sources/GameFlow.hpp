@@ -23,7 +23,13 @@ struct StringTable {
 };
 
 struct GameFlow {
-    enum Phase { TITLE, PLAYING, DEAD, COMPLETE };
+    enum Phase { COMIC, TITLE, PLAYING, DEAD, COMPLETE };
+    // Intro comic montage: global page numbers (comic_N.tga). Level 1 starts
+    // at page 1 (certain); later levels' start pages are estimated from the
+    // per-level Comic-node share (documented limitation).
+    int comicFirst = 1, comicCount = 4, comicIndex = 0;
+    uint32_t comicPageStartMs = 0;
+    bool advanceComic(uint32_t nowMs);   // returns true when the montage is over
     Phase phase = TITLE;
     int levelIndex = 0;
     uint32_t phaseStartMs = 0;
@@ -36,6 +42,7 @@ struct GameFlow {
 
     void beginLevel(const LevelRoom& lvl, int index, uint32_t nowMs);
     void startPlay(uint32_t nowMs) { phase = PLAYING; phaseStartMs = nowMs; }
+    void showTitle(uint32_t nowMs) { phase = TITLE; phaseStartMs = nowMs; }
     // Marks newly reached checkpoints, moves the respawn point; returns true
     // if this update completed the level.
     bool updatePlaying(const Vec3& hero, uint32_t nowMs);

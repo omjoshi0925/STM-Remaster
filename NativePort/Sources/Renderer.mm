@@ -261,7 +261,10 @@ fragment half4 frag(Out i                   [[stage_in]],
     if (u.misc.w > 0.5 && tex.a < 0.5h) discard_fragment();     // alpha-tested foliage/fences
     half3 base = (u.misc.x > 0.5) ? tex.rgb : half3(u.tint.rgb);
     if (u.misc.z > 0.5) base *= lm.sample(s, i.uv2).rgb * 2.0h;  // original lightmap layer (M2)
-    return half4(base * half3(i.vc) * half(i.l), half(u.tint.a));
+    // baked vertex colour is a 2x modulate on textured level batches (mean 0.66 -> daylight);
+    // characters (misc.y == 0) and lightmapped batches leave it alone
+    half3 vcol = (u.misc.y > 0.5 && u.misc.z < 0.5) ? half3(i.vc) * 2.0h : half3(1.0h);
+    return half4(base * vcol * half(i.l), half(u.tint.a));
 }
 )";
 
@@ -318,6 +321,12 @@ fragment half4 frag(Out i                   [[stage_in]],
     std::string _assetRootStr;
     id<MTLTexture> _paperTex;
     UILabel *_flowLabel;
+    UILabel *_skipLabel;
+    id<MTLTexture> _comicTex;
+    int _comicLoadedPage;
+    NSMutableArray<id<MTLBuffer>> *_skyVBs, *_skyIBs;
+    NSMutableArray<id<MTLTexture>> *_skyTex;
+    std::vector<NSUInteger> _skyCounts;
     id<MTLBuffer> _npcBones;
 
     std::unique_ptr<Model> _hero;
@@ -489,6 +498,14 @@ fragment half4 frag(Out i                   [[stage_in]],
     _flowLabel.shadowColor = UIColor.blackColor;
     _flowLabel.shadowOffset = CGSizeMake(0, 2);
     [view addSubview:_flowLabel];
+    _skipLabel = [[UILabel alloc] initWithFrame:CGRectMake(view.bounds.size.width - 150, 24, 130, 40)];
+    _skipLabel.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleBottomMargin;
+    _skipLabel.textAlignment = NSTextAlignmentRight;
+    _skipLabel.textColor = [UIColor colorWithRed:1.0 green:0.78 blue:0.2 alpha:1.0];
+    _skipLabel.font = [UIFont italicSystemFontOfSize:26];
+    _skipLabel.text = @"SKIP";
+    _skipLabel.hidden = YES;
+    [view addSubview:_skipLabel];
 
     _actor = std::make_unique<Character>();
     if (_heroReady && animReady) {
@@ -532,6 +549,10 @@ fragment half4 frag(Out i                   [[stage_in]],
     float rightX = cosf(_camYaw), rightY = -sinf(_camYaw);
     float moveX = rightX * _stickX + fwdX * _stickY;
     float moveY = rightY * _stickX + fwdY * _stickY;
+    if (_flow.phase == bdae::GameFlow::COMIC) {
+        uint32_t cms = (uint32_t)(now * 1000.0);
+        if (cms - _flow.comicPageStartMs > 5200) _flow.advanceComic(cms);
+    }
     BOOL playing = (_flow.phase == bdae::GameFlow::PLAYING) && !_paused;
     if (!playing) dt = 0;
     if (_actor && playing) _actor->update(dt, moveX, moveY);
@@ -559,10 +580,15 @@ fragment half4 frag(Out i                   [[stage_in]],
             _heroHP, alive, _foes.size(), _flow.visitedCount(), _flow.checkpointsAll.size()];
         NSString *gn = [NSString stringWithUTF8String:
             _strings.get("STR_GAME_NAME", "SPIDER-MAN: TOTAL MAYHEM").c_str()];
+        NSString *lvName = [NSString stringWithUTF8String:
+            _strings.get("STR_LEVELNEW_" + std::to_string(_flow.levelIndex + 1) + "_NAME",
+                         "LEVEL " + std::to_string(_flow.levelIndex + 1)).c_str()];
+        _skipLabel.hidden = (_flow.phase != bdae::GameFlow::COMIC);
         switch (_flow.phase) {
+            case bdae::GameFlow::COMIC:
+                _flowLabel.text = @""; break;
             case bdae::GameFlow::TITLE:
-                _flowLabel.text = [NSString stringWithFormat:@"%@\nLEVEL %d\n\nTap to start",
-                                   gn, _flow.levelIndex + 1]; break;
+                _flowLabel.text = [NSString stringWithFormat:@"%@\n\n%@\n\nTap to start", gn, lvName]; break;
             case bdae::GameFlow::DEAD:
                 _flowLabel.text = @"SPIDER-MAN IS DOWN\n\nTap to retry from the last checkpoint"; break;
             case bdae::GameFlow::COMPLETE:
@@ -596,6 +622,26 @@ fragment half4 frag(Out i                   [[stage_in]],
         p.z + 95.0f + sinf(_camPitch) * _camDist};
     simd_float4x4 vp = simd_mul(MPerspective(58.0f * (float)M_PI / 180.0f, aspect, 10.0f, 120000.0f),
                                 MLookAt(eye, target, (simd_float3){0, 0, 1}));
+
+    if (_skyCounts.size()) {
+        Uniforms su;
+        su.vp = vp;
+        su.model = MTranslate(eye.x, eye.y, eye.z - 300.0f);
+        su.tint = (simd_float4){1, 1, 1, 1};
+        [enc setRenderPipelineState:_staticPipe];
+        [enc setDepthStencilState:_noDepth];
+        for (NSUInteger b = 0; b < _skyCounts.size(); ++b) {
+            su.misc = (simd_float4){_skyTex[b] != _white ? 1.0f : 0.0f, 0, 0, 0};
+            [enc setVertexBytes:&su length:sizeof(su) atIndex:1];
+            [enc setFragmentBytes:&su length:sizeof(su) atIndex:1];
+            [enc setFragmentTexture:_skyTex[b] atIndex:0];
+            [enc setFragmentTexture:_white atIndex:1];
+            [enc setVertexBuffer:_skyVBs[b] offset:0 atIndex:0];
+            [enc drawIndexedPrimitives:MTLPrimitiveTypeTriangle indexCount:_skyCounts[b]
+                             indexType:MTLIndexTypeUInt16 indexBuffer:_skyIBs[b] indexBufferOffset:0];
+        }
+        [enc setDepthStencilState:_depth];
+    }
 
     if (_levelReady && _levelCounts.size()) {
         Uniforms u;
@@ -694,36 +740,31 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
             cx += w + pad; rowH = fmaxf(rowH, h);
         }
     } else {
-        // health bar (top-left): frame module + tinted fill scaled by HP
-        if (_modBarFrame >= 0) {
-            const bdae::SpriteModule &bar = mod(_modBarFrame);
-            float bw = 3.2f * bar.w * sc, bh = 3.2f * bar.h * sc;
-            quad(80 * sc, 118 * sc, bw * fmaxf(0.02f, _heroHP / 100.0f), bh,
-                 bar, 90, 230, 60, 255);
-            quad(80 * sc, 118 * sc, bw, bh, bar, 255, 255, 255, 90);
-        }
-        // pause square (top-left corner; also the atlas-sheet toggle zone)
-        if (_modButton >= 0)
-            quad(14 * sc, 14 * sc, 52 * sc, 52 * sc, mod(_modButton),
-                 255, 255, 255, _paused ? 255 : 170);
-        // virtual stick while touching
-        if (_moveTouchActive > 0 && _modStickBase >= 0) {
-            float R = 96 * sc;
-            float bx = (float)_moveOriginX * (W / fmaxf(1.0f, (float)UIScreen.mainScreen.bounds.size.width));
-            float by = (float)_moveOriginY * (H / fmaxf(1.0f, (float)UIScreen.mainScreen.bounds.size.height));
-            quad(bx - R, by - R, 2 * R, 2 * R, mod(_modStickBase), 255, 255, 255, 150);
-            if (_modStickPuck >= 0) {
-                float r2 = 34 * sc;
-                quad(bx + _stickX * R * 0.7f - r2, by - _stickY * R * 0.7f - r2,
-                     2 * r2, 2 * r2, mod(_modStickPuck), 255, 255, 255, 220);
+        // Real HUD sprites, rectangles measured from the decoded interface atlas.
+        static const bdae::SpriteModule kPuck{173, 218, 50, 51}, kButton{120, 218, 50, 51},
+            kPortrait{42, 220, 67, 50}, kBarBg{183, 404, 130, 18}, kBarFrame{142, 429, 130, 17},
+            kWebBar{35, 380, 138, 18};
+        if (_flow.phase == bdae::GameFlow::PLAYING || _paused) {
+            // pause (top-left), portrait, health bar, web meter — reference layout at 768 px height
+            quad(18 * sc, 18 * sc, 52 * sc, 52 * sc, kButton, 255, 255, 255, _paused ? 255 : 200);
+            quad(78 * sc, 12 * sc, 120 * sc, 90 * sc, kPortrait, 255, 255, 255, 255);
+            quad(204 * sc, 34 * sc, 470 * sc, 30 * sc, kBarBg, 255, 255, 255, 230);
+            quad(208 * sc, 37 * sc, 462 * sc * fmaxf(0.02f, _heroHP / 100.0f), 24 * sc, kBarFrame, 60, 230, 40, 255);
+            quad(204 * sc, 70 * sc, 400 * sc, 20 * sc, kWebBar, 255, 255, 255, 220);
+            // virtual stick while touching
+            if (_moveTouchActive > 0) {
+                float R = 96 * sc;
+                float bx = (float)_moveOriginX * (W / fmaxf(1.0f, (float)UIScreen.mainScreen.bounds.size.width));
+                float by = (float)_moveOriginY * (H / fmaxf(1.0f, (float)UIScreen.mainScreen.bounds.size.height));
+                quad(bx - R * 1.35f, by - R * 1.35f, 2.7f * R, 2.7f * R, kPuck, 255, 255, 255, 60);
+                float r2 = 48 * sc;
+                quad(bx + _stickX * R * 0.7f - r2, by - _stickY * R * 0.7f - r2, 2 * r2, 2 * r2, kPuck, 255, 255, 255, 235);
             }
-        }
-        // action buttons bottom-right: punch (active) + two stubs
-        if (_modButton >= 0) {
-            float bs = 108 * sc;
-            quad(W - 1.4f * bs, H - 2.6f * bs, bs, bs, mod(_modButton), 255, 90, 80, 230);
-            quad(W - 2.6f * bs, H - 1.5f * bs, bs, bs, mod(_modButton), 255, 90, 80, 230);
-            quad(W - 1.3f * bs, H - 1.3f * bs, bs, bs, mod(_modButton), 160, 160, 160, 140);
+            // action buttons bottom-right: punch, jump/dodge (stub), web (stub)
+            float bs = 116 * sc;
+            quad(W - 3.05f * bs, H - 2.35f * bs, bs, bs, kButton, 255, 255, 255, 240);
+            quad(W - 1.55f * bs, H - 2.55f * bs, bs, bs, kButton, 255, 255, 255, 150);
+            quad(W - 2.1f * bs, H - 1.25f * bs, bs, bs, kButton, 255, 255, 255, 150);
         }
     }
     // full-screen flow overlays drawn beneath nothing else (segments by texture)
@@ -731,17 +772,25 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
     NSUInteger darkStart = verts.size();
     if (_flow.phase != bdae::GameFlow::PLAYING && !_showAtlasSheet) {
         bdae::SpriteModule full{0, 0, 4, 4};   // any opaque texel region of _white
-        quad(0, 0, W, H, full, 10, 10, 18, _flow.phase == bdae::GameFlow::TITLE ? 235 : 200);
+        quad(0, 0, W, H, full, 6, 6, 10, _flow.phase == bdae::GameFlow::COMIC ? 255 : 225);
     }
     NSUInteger darkCount = verts.size() - darkStart;
     NSUInteger paperStart = verts.size();
-    if ((_flow.phase == bdae::GameFlow::TITLE || _flow.phase == bdae::GameFlow::COMPLETE)
-        && _paperTex && !_showAtlasSheet) {
-        float ph = H * 0.66f, pw = ph;
-        bdae::SpriteModule pm{0, 0, 512, 512};
-        quad((W - pw) * 0.5f, (H - ph) * 0.42f, pw, ph, pm, 255, 255, 255, 255);
+    id<MTLTexture> pageTex = nil;
+    if (_flow.phase == bdae::GameFlow::COMIC && !_showAtlasSheet) {
+        pageTex = [self comicPage:_flow.comicFirst + _flow.comicIndex];
+        if (pageTex) {
+            // Ken Burns: slow push-in with a drift, like the original montage
+            float t = fminf(1.0f, (float)((uint32_t)(CACurrentMediaTime() * 1000.0) - _flow.comicPageStartMs) / 4500.0f);
+            float scale = 1.04f + 0.14f * t;
+            float ph = H * 0.94f * scale, pw = ph;
+            float cx = W * 0.5f + (0.5f - (float)((_flow.comicIndex & 1) ? 1 : 0)) * 60.0f * sc * t;
+            bdae::SpriteModule pm{0, 0, 512, 512};
+            quad(cx - pw * 0.5f, (H - ph) * 0.5f, pw, ph, pm, 255, 255, 255, 255);
+        }
     }
     NSUInteger paperCount = verts.size() - paperStart;
+    _paperTex = pageTex;
 
     if (verts.empty()) return;
     NSUInteger bytes = verts.size() * sizeof(SpriteVert);
@@ -767,6 +816,61 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
         [enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:hudCount];
     }
     [enc setDepthStencilState:_depth];
+}
+
+// -------------------------------------------------------------------- sky ---
+- (void)loadSky:(const std::string &)assetRoot levelDir:(const char *)levelDir {
+    _skyVBs = [NSMutableArray new]; _skyIBs = [NSMutableArray new]; _skyTex = [NSMutableArray new];
+    _skyCounts.clear();
+    std::string dir = assetRoot + "/" + levelDir + "/meshes_bin/";
+    const char *names[] = {"lvl01_sky.bdae", "lvl02_sky.bdae", "sky.bdae"};
+    Model sky; std::string e; bool ok = false;
+    for (const char *n : names) if (sky.loadMesh(resolveCaseInsensitive(dir + n), e)) { ok = true; break; }
+    if (!ok) { NSLog(@"[TotalMayhem] sky: none in %s", dir.c_str()); return; }
+    for (const Mesh &m : sky.meshes) {
+        for (const SubMesh &sm : m.subMeshes) {
+            std::vector<GPUStaticVertex> verts;
+            std::vector<uint16_t> idx;
+            std::vector<int32_t> remap(m.vertices.size(), -1);
+            for (uint32_t i = sm.firstIndex; i < sm.firstIndex + sm.indexCount && i < m.indices.size(); ++i) {
+                uint16_t vi = m.indices[i];
+                if (remap[vi] < 0) {
+                    const Vertex &v = m.vertices[vi];
+                    GPUStaticVertex d;
+                    d.p[0] = v.px; d.p[1] = v.py; d.p[2] = v.pz;
+                    d.n[0] = v.nx; d.n[1] = v.ny; d.n[2] = v.nz;
+                    d.uv[0] = v.u; d.uv[1] = v.v; d.uv2[0] = v.u2; d.uv2[1] = v.v2;
+                    for (int k = 0; k < 4; ++k) d.c[k] = 255;
+                    remap[vi] = (int32_t)verts.size(); verts.push_back(d);
+                }
+                idx.push_back((uint16_t)remap[vi]);
+            }
+            if (verts.empty()) continue;
+            id<MTLTexture> t = [self levelTextureNamed:sm.diffuse];
+            if (!t && !sky.textureNames.empty()) t = [self levelTextureNamed:sky.textureNames.front()];
+            [_skyVBs addObject:[_device newBufferWithBytes:verts.data() length:verts.size() * sizeof(GPUStaticVertex) options:MTLResourceStorageModeShared]];
+            [_skyIBs addObject:[_device newBufferWithBytes:idx.data() length:idx.size() * sizeof(uint16_t) options:MTLResourceStorageModeShared]];
+            [_skyTex addObject:(t ? t : _white)];
+            _skyCounts.push_back(idx.size());
+        }
+    }
+    NSLog(@"[TotalMayhem] sky: %zu batches", _skyCounts.size());
+}
+
+- (id<MTLTexture>)comicPage:(int)page {
+    if (_comicLoadedPage == page) return _comicTex;
+    NSString *root = [NSString stringWithUTF8String:_assetRootStr.c_str()];
+    for (NSString *dir in @[@"comic1", @"comic2", @"comics"]) {
+        NSString *p = [NSString stringWithFormat:@"%@/%@/comic_%d.tga", root, dir, page];
+        if ([NSFileManager.defaultManager fileExistsAtPath:p]) {
+            _comicTex = LoadPVRTC(_device, p); _comicLoadedPage = page;
+            if (!_comicTex) NSLog(@"[TotalMayhem] comic page %d failed to decode", page);
+            return _comicTex;
+        }
+    }
+    NSLog(@"[TotalMayhem] comic page %d not found (extract comic1.pack into Assets/comic1)", page);
+    _comicLoadedPage = page; _comicTex = nil;
+    return nil;
 }
 
 // --------------------------------------------------------------- textures ---
@@ -1018,6 +1122,8 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
 
     if (_heroReady) _fists.bind(*_hero);
     [self loadEnemiesFromLevel:assetRoot];
+    [self loadSky:assetRoot levelDir:kLevelDirs[idx % kLevelCount]];
+    _comicLoadedPage = -1; _comicTex = nil;
     if (_actor) {
         _actor->bind(_hero.get(), _levelReady ? _room.get() : nullptr);
         if (_levelReady && _room->hasSpawn) _actor->spawnAt(_room->spawn, _room->spawnYaw);
@@ -1033,7 +1139,11 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
 - (void)touchBegin:(CGPoint)p {
     if (_flow.phase != bdae::GameFlow::PLAYING) {
         uint32_t nowMs = (uint32_t)(CACurrentMediaTime() * 1000.0);
-        if (_flow.phase == bdae::GameFlow::TITLE) {
+        if (_flow.phase == bdae::GameFlow::COMIC) {
+            CGFloat sw = UIScreen.mainScreen.bounds.size.width;
+            if (p.x > sw * 0.78 && p.y < 90) { _flow.comicIndex = _flow.comicCount - 1; }   // SKIP zone
+            _flow.advanceComic(nowMs);
+        } else if (_flow.phase == bdae::GameFlow::TITLE) {
             _flow.startPlay(nowMs);
         } else if (_flow.phase == bdae::GameFlow::DEAD) {
             _heroHP = 100.0f;
