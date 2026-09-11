@@ -1011,6 +1011,12 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
             }
         }
     }
+    if (_paused && _flow.phase == bdae::GameFlow::PLAYING) {
+        useTex(_white);
+        quad(0, 0, W, H, kFull, 6, 6, 10, 150);
+        drawText("PAUSED", W * 0.5f, H * 0.40f, 72 * sc, 1, 255);
+        drawText("TAP THE BUBBLE TO RESUME", W * 0.5f, H * 0.60f, 34 * sc, 1, 220);
+    }
     // combo banner (right side), like the original "N COMBOS!"
     if (_fontAtlas && _flow.phase == bdae::GameFlow::PLAYING && _comboHits >= 2 && nowMs - _comboLastMs < 1200) {
         char cb[32]; snprintf(cb, sizeof cb, "%d COMBOS!", _comboHits);
