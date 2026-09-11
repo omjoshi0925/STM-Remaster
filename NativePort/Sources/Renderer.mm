@@ -660,7 +660,7 @@ fragment half4 frag(Out i                   [[stage_in]],
     Vec3 heroPos = _actor ? _actor->position() : Vec3{0, 0, 0};
     for (bdae::EnemyActor &f : _foes)
         if (playing && f.update(nowMs, dtMs, heroPos) && _heroHP > 0)
-            _heroHP = fmaxf(0.0f, _heroHP - 5.0f);   // per-attack damage table not decoded yet
+            _heroHP = fmaxf(0.0f, _heroHP - f.stats.damage);
     if (playing) {
         int hits = _fists.update(nowMs, heroPos, _actor ? _actor->yaw() : 0.0f, _foes);
         _score += hits * 10;
@@ -1382,6 +1382,7 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
         if (sn != kStatName.end() && statTable.count(sn->second)) st = statTable[sn->second];
         st.ranged = (std::strncmp(arch->prefix, "Range", 5) == 0) ||
                     (std::strcmp(arch->prefix, "MeleeThug_gun") == 0);
+        st.damage = (std::strncmp(arch->prefix, "Boss_", 5) == 0) ? 12.0f : 5.0f;
         _foes.emplace_back();
         _foes.back().bind(_npcModel[ti].get(), _room.get(), st,
                           en.pos.x, en.pos.y, gz, en.yaw);
@@ -1415,6 +1416,11 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
         const Vec3 &a = _npcAnchor[n.type];
         float ex = n.x, ey = n.y, ez = n.z, eyaw = n.yaw;
         if (i < _foes.size()) { ex = _foes[i].x; ey = _foes[i].y; ez = _foes[i].z; eyaw = _foes[i].yaw; }
+        if (i < _foes.size()) {
+            float sink = _foes[i].corpseSink(nowMs);
+            if (sink >= 1.0f) continue;
+            ez -= sink * 240.0f;
+        }
         Uniforms u;
         u.vp = vp;
         u.model = simd_mul(simd_mul(MTranslate(ex, ey, ez), MRotZ(eyaw + kModelYawOffset)),
