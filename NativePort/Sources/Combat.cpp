@@ -192,7 +192,7 @@ void EnemyActor::takeHit(float dmg, uint32_t nowMs, float fromX, float fromY) {
         else if (level->canStandAt(nx, y, nz))  { x = nx; z = nz; }
         else if (level->canStandAt(x, ny, nz))  { y = ny; z = nz; }
     }
-    if (hp <= 0) { hp = 0; state = DEAD; }
+    if (hp <= 0) { hp = 0; state = DEAD; diedMs = nowMs; }
     else         { state = HURT; }
     stateStartMs = nowMs;
 }

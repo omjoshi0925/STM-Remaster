@@ -15,6 +15,9 @@ struct EnemyStats {
     float rangedRange = 1200;    // f9: ranged-attack distance (gun 1200, rhino 3000)
     uint32_t attackIntervalMs = 2000;
     bool ranged = false;         // Range*/gun archetypes attack from rangedRange
+    // Per-hit damage to the hero. The AttackConfigs row linkage is not decoded
+    // yet, so these are placeholders held in ONE place (bosses hit harder).
+    float damage = 5.0f;
 };
 
 // Parses configs/EnemysAttributeConfigs.bin (count, then records of
@@ -52,6 +55,13 @@ struct EnemyActor {
     // fromX/fromY = attacker position; the victim is knocked straight back.
     void takeHit(float dmg, uint32_t nowMs, float fromX, float fromY);
     bool alive() const { return state != DEAD; }
+    uint32_t diedMs = 0;                      // set when entering DEAD
+    // 0..1 sink factor for corpse removal (starts 3 s after death, 1 s long)
+    float corpseSink(uint32_t nowMs) const {
+        if (state != DEAD || !diedMs || nowMs < diedMs + 3000) return 0;
+        uint32_t t = nowMs - diedMs - 3000;
+        return t >= 1000 ? 1.0f : t / 1000.0f;
+    }
     // Which clip + shared-timeline time the renderer should pose right now.
     void poseInfo(uint32_t nowMs, const Clip*& clip, uint32_t& timelineMs) const;
 };
