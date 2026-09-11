@@ -390,6 +390,7 @@ fragment half4 frag(Out i                   [[stage_in]],
     struct Popup { float x, y, z; int value; uint32_t bornMs; };
     std::vector<Popup> _popups;
     int _comboHits; uint32_t _comboLastMs;
+    float _webEnergy;
     UILabel *_flowLabel;
     UILabel *_skipLabel;
     MTKView *_mtkView;
@@ -661,6 +662,7 @@ fragment half4 frag(Out i                   [[stage_in]],
     for (bdae::EnemyActor &f : _foes)
         if (playing && f.update(nowMs, dtMs, heroPos) && _heroHP > 0)
             _heroHP = fmaxf(0.0f, _heroHP - f.stats.damage);
+    if (playing) _webEnergy = fminf(100.0f, _webEnergy + dt * 8.0f);
     if (playing && _flow.takeCheckpointReached()) {
         _heroHP = 100.0f;   // the original restores health at checkpoints (assumption, documented)
         _popups.push_back({heroPos.x, heroPos.y, heroPos.z + 220.0f, 0, nowMs});   // 0 = CHECKPOINT
@@ -948,7 +950,7 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
         quad(74 * sc, 20 * sc, 80 * sc, 120 * sc, kPortrait, 255, 255, 255, 255);
         quad(170 * sc, 34 * sc, 404 * sc, 40 * sc, kHpFrame, 255, 255, 255, 255);
         quad(178 * sc, 40 * sc, 386 * sc * fmaxf(0.0f, _heroHP / 100.0f), 28 * sc, kHpFill, 255, 255, 255, 255);
-        quad(172 * sc, 80 * sc, 356 * sc, 34 * sc, kWebMeter, 255, 255, 255, 235);
+        quad(172 * sc, 80 * sc, 356 * sc * fmaxf(0.06f, _webEnergy / 100.0f), 34 * sc, kWebMeter, 255, 255, 255, 235);
         // joystick: fixed home like the original, knob follows the stick
         float jx = 175 * sc, jy = H - 135 * sc, R = 92 * sc;
         circle(jx, jy, R, kRing, 200);
@@ -1505,6 +1507,7 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
         if (_levelReady && _room->hasSpawn) _actor->spawnAt(_room->spawn, _room->spawnYaw);
     }
     _heroHP = 100.0f;
+    _webEnergy = 100.0f;
     _paused = NO;
     if (_levelReady)
         _flow.beginLevel(*_room, idx % kLevelCount, (uint32_t)(CACurrentMediaTime() * 1000.0));
@@ -1548,7 +1551,28 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
         CGFloat r = 82 * k;
         auto inside = [&](CGPoint c) { return hypot(p.x - c.x, p.y - c.y) < r; };
         if (inside(fist)) { _fists.tryPunch((uint32_t)(CACurrentMediaTime() * 1000.0)); return; }
-        if (inside(dodge) || inside(web)) return;   // dodge / web: not implemented yet
+        if (inside(web)) {   // web attack: costs web power, snaps the nearest foe in front
+            uint32_t nowMs = (uint32_t)(CACurrentMediaTime() * 1000.0);
+            if (_webEnergy >= 25.0f && _actor) {
+                Vec3 hp = _actor->position(); float yaw = _actor->yaw();
+                float fx = cosf(yaw), fy = sinf(yaw);
+                bdae::EnemyActor *best = nullptr; float bestD = 800.0f;
+                for (bdae::EnemyActor &f : _foes) {
+                    if (!f.alive()) continue;
+                    float dx = f.x - hp.x, dy = f.y - hp.y, d = sqrtf(dx * dx + dy * dy);
+                    if (d < bestD && (d < 1.0f || (dx * fx + dy * fy) / d > 0.3f)) { best = &f; bestD = d; }
+                }
+                if (best) {
+                    _webEnergy -= 25.0f;
+                    best->takeHit(15.0f, nowMs, hp.x, hp.y);
+                    _score += 15;
+                    _popups.push_back({best->x, best->y, best->z + 190.0f, 15, nowMs});
+                    _fists.tryPunch(nowMs);   // reuse the strike animation for now
+                }
+            }
+            return;
+        }
+        if (inside(dodge)) return;   // dodge: not implemented yet
     }
     CGFloat half = sw * 0.5;
     if (p.x < half && _moveTouchActive < 0) {
