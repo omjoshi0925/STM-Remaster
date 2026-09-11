@@ -32,9 +32,15 @@ void GameFlow::beginLevel(const LevelRoom& lvl, int index, uint32_t nowMs) {
     checkpoint = lvl.spawn;
     checkpointYaw = lvl.spawnYaw;
     checkpointsAll.clear();
-    for (auto& mk : lvl.markers)
+    comicNodes.clear();
+    for (auto& mk : lvl.markers) {
         if (mk.first == "CheckPoint") checkpointsAll.push_back(mk.second);
+        else if (mk.first == "Comic") comicNodes.push_back(mk.second);
+    }
     visited.assign(checkpointsAll.size(), false);
+    comicNodeSeen.assign(comicNodes.size(), false);
+    comicPagesShown = 0;
+    comicResumesPlay = false;
 }
 
 bool GameFlow::updatePlaying(const Vec3& hero, uint32_t) {
@@ -59,8 +65,24 @@ bool GameFlow::updatePlaying(const Vec3& hero, uint32_t) {
 bool GameFlow::advanceComic(uint32_t nowMs) {
     ++comicIndex;
     comicPageStartMs = nowMs;
-    if (comicIndex >= comicCount) { showTitle(nowMs); return true; }
+    if (comicIndex >= comicCount) {
+        if (comicResumesPlay) { comicResumesPlay = false; startPlay(nowMs); }
+        else showTitle(nowMs);
+        return true;
+    }
     return false;
+}
+
+int GameFlow::comicNodeReached(const Vec3& hero) {
+    for (size_t i = 0; i < comicNodes.size(); ++i) {
+        if (comicNodeSeen[i]) continue;
+        float dx = comicNodes[i].x - hero.x, dy = comicNodes[i].y - hero.y;
+        if (dx * dx + dy * dy < 350.0f * 350.0f && std::fabs(comicNodes[i].z - hero.z) < 500.0f) {
+            comicNodeSeen[i] = true;
+            return (int)i;
+        }
+    }
+    return -1;
 }
 
 int GameFlow::visitedCount() const {

@@ -322,7 +322,8 @@ bool LevelRoom::load(const std::string& assetRoot, const std::string& levelDir,
                                   1.0f - 2.0f * (n.rotation.y * n.rotation.y + n.rotation.z * n.rotation.z));
             enemies.push_back({ n.gameType, Vec3{ n.absolute.m[12], n.absolute.m[13], n.absolute.m[14] }, yw });
         }
-        else if (n.gameType == "CheckPoint" || n.gameType == "WayPoint" || n.gameType == "WebGrabPoint")
+        else if (n.gameType == "CheckPoint" || n.gameType == "WayPoint" ||
+                 n.gameType == "WebGrabPoint" || n.gameType == "Comic")
             markers.push_back({ n.gameType, Vec3{ n.absolute.m[12], n.absolute.m[13], n.absolute.m[14] } });
     }
     if (visualBatches.empty() && collision.empty()) { err = "level " + name + " produced no geometry"; return false; }

@@ -29,7 +29,14 @@ struct GameFlow {
     // per-level Comic-node share (documented limitation).
     int comicFirst = 1, comicCount = 4, comicIndex = 0;
     uint32_t comicPageStartMs = 0;
-    bool advanceComic(uint32_t nowMs);   // returns true when the montage is over
+    bool advanceComic(uint32_t nowMs);   // returns true when the sequence is over
+    bool comicResumesPlay = false;       // mid-level beat: return to PLAYING, not TITLE
+    // Original Comic trigger nodes: one page pops when the hero first reaches one.
+    std::vector<Vec3> comicNodes;
+    std::vector<bool> comicNodeSeen;
+    int comicPagesShown = 0;             // pages consumed by this level (sequential)
+    // Returns the node index newly reached, or -1.
+    int comicNodeReached(const Vec3& hero);
     Phase phase = TITLE;
     int levelIndex = 0;
     uint32_t phaseStartMs = 0;

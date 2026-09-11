@@ -663,6 +663,16 @@ fragment half4 frag(Out i                   [[stage_in]],
         if (playing && f.update(nowMs, dtMs, heroPos) && _heroHP > 0)
             _heroHP = fmaxf(0.0f, _heroHP - f.stats.damage);
     if (playing) _webEnergy = fminf(100.0f, _webEnergy + dt * 8.0f);
+    if (playing && _flow.comicNodeReached(heroPos) >= 0) {
+        // a story beat: pop the next comic page, then resume play on tap
+        _flow.comicResumesPlay = true;
+        _flow.comicIndex = 0;
+        _flow.comicCount = 1;
+        _flow.comicFirst = _flow.comicFirst + 4 + _flow.comicPagesShown;   // after the 4 intro pages
+        ++_flow.comicPagesShown;
+        _flow.phase = bdae::GameFlow::COMIC;
+        _flow.comicPageStartMs = nowMs;
+    }
     if (playing && _flow.takeCheckpointReached()) {
         _heroHP = 100.0f;   // the original restores health at checkpoints (assumption, documented)
         _popups.push_back({heroPos.x, heroPos.y, heroPos.z + 220.0f, 0, nowMs});   // 0 = CHECKPOINT
