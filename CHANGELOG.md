@@ -417,3 +417,13 @@ All flow text now uses it: chapter card (original level name from xlsStrings),
 TAP TO START/RETRY/CONTINUE, SKIP, SPIDER-MAN IS DOWN, LEVEL COMPLETE, the
 "+N" popups (corrected '+' glyph) and a "N COMBOS!" banner. UILabels remain
 only as a fallback if the font atlas fails to load.
+
+
+## Milestone 13 — ten focused commits (2026-09-10)
+Per-enemy damage on EnemyStats (bosses 12); corpses settle away after death;
+checkpoint reach feedback + health restore (assumption documented); web
+attack on the web button driven by a regenerating web-power meter; PAUSED
+overlay in the original font; spider-sense limited to 2600 u with distance
+fade; mid-level comic beats from the original 18 Comic trigger nodes
+(sequential pages after the intro — node-to-page table still undecoded);
+milestone 12 host suite (11 suites total); Tools/inspect_atlas.py; README.

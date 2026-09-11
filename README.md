@@ -1,57 +1,52 @@
 # STM-Remaster
 
-Native ARM64 iOS reimplementation of **Spider-Man: Total Mayhem** (Gameloft, 2010),
-rebuilding the original 32-bit game engine for modern iPhones using Metal —
-reverse-engineered BDAE assets, animation, level data, and gameplay systems.
-No emulation, no original code: the engine is new, the data is original.
+A from-scratch native ARM64 rebuild of **Spider-Man: Total Mayhem** (Gameloft,
+2010, iOS) as a modern Metal app for current iPhones, driven entirely by the
+original game's own data files.
 
-## Current state (Milestone 5)
+**This repository contains no game assets.** It holds original code, format
+documentation, and tests. To run anything you must own the original game and
+extract its packs into `Assets/` yourself (see *Getting started*). All asset
+containers (`*.pack`, `*.ipa`, `*.apk`, media) are gitignored.
 
-Verified headlessly against real game data (all suites in `hosttests/` pass):
+## What works today
+- BDAE `0.0.0.324` model format decoded: meshes, dynamic vertex layouts,
+  skinning, animation clips, scene graphs (`FORMAT_BDAE324.md`)
+- Full levels assembled from the original `.irr` scenes: geometry, collision,
+  navmesh, spawns, checkpoints, 232 prop placements, 93 bonuses (Level 1)
+- Texture binding solved (effect image-index arrays + name classification,
+  confirmed against the Android build's `CMaterial::prepareMaterial`):
+  textured city, lightmaps on the second UV set, alpha test
+- Game flow: boot videos, chapter card, checkpoints/respawn, completion,
+  Level 1 <-> Level 2; mid-level comic beats from the original Comic nodes
+- Combat: config-driven enemy stats/AI (melee + ranged), 3-hit combo,
+  knockback, web attack with web-power meter, bosses spawn with real assets
+- Authentic HUD from `interface.tga` (every sprite rectangle verified
+  visually - `docs/`) and all UI text in the original outlined font
+- 11 host-side test suites validate parsers and gameplay logic against the
+  real game data before anything ships to a device (`hosttests/`)
 
-- **BDAE 0.0.0.324 loader** — geometry, per-vertex colours, skeletons, skinning
-  (max-3 influences), scene instancing, full animation library (242 Spider-Man
-  clips on a shared timeline), documented in `FORMAT_BDAE324.md`.
-- **Entire Level 1** — all room scenes auto-discovered and merged: 29,439 visual
-  triangles in uint16-safe batches, 3,180 collision triangles, 332 navmesh
-  triangles, 55 markers, 78 enemy placements, original spawn point.
-- **Baked lighting** — the level's per-vertex colour channel (300+ distinct
-  colours) drives the night-time street look.
-- **Characters** — Spider-Man with idle/walk/run state machine and navmesh-gated
-  movement; thug enemy archetypes (bat / knife / molotov / gun / hammer / big)
-  load, bind all animation channels, and idle-animate at their original spawns.
-- **Metal renderer** — GPU skinning, PVRTC textures from the original packs,
-  vertex-lit level batches, per-enemy bone buffers.
+## Getting started
+1. Clone, and place your legally obtained packs in
+   `<workbench>/OriginalPacks/` (see `GIT_COMMANDS.md` for the layout).
+2. Extract packs into `Assets/` (each `.pack` is a ZIP with `GBMP` local
+   signatures; swap to `PK\x03\x04` and unzip) - the CHANGELOG documents the
+   exact commands per milestone.
+3. `cmake -G Xcode NativePort` into `build-ios/`, open, set your team, run.
+4. Verify your extraction: `hosttests/run_host_tests.sh <Assets path>`.
 
-**Not yet device-confirmed:** everything in the previous line renders in Xcode
-builds but the Milestone 5 frame has not been visually verified on the phone.
-**Known open problem:** the static effect→image texture binding for level
-geometry (see `FORMAT_BDAE324.md` §Open questions) — level renders vertex-lit
-untextured until solved.
+## Layout
+- `NativePort/Sources/` - the engine: BDAE loader, level assembly, combat,
+  game flow, Metal renderer
+- `hosttests/` - data-driven verification suites (run on macOS, no device)
+- `Tools/` - format explorers: BDAE dumper, libspiderman.so disassembler,
+  atlas inspector
+- `docs/` - visual proofs (atlas sheets, HUD sprite verification, font proof)
+- `FORMAT_BDAE324.md` - the reverse-engineered format reference
+- `CHANGELOG.md` - per-milestone ledger: implemented / verified locally /
+  device-pending / known limitations / not yet implemented
 
-## Repository layout
-
-    NativePort/          CMake iOS app: sources + plist + icons (no game data)
-    hosttests/           Headless verification suites + run_host_tests.sh
-    scripts/             apply_to_workbench.sh - sync repo -> local workbench -> Xcode
-    Tools/               Python: unpack .pack (GBMP), parse BDAE/irr, prep from IPA
-    analysis/            ARMv7 binary reconnaissance (symbols, ObjC metadata)
-    FORMAT_BDAE324.md    The reverse-engineered format, with evidence
-    CHANGELOG.md         Milestone history
-    GIT_COMMANDS.md      Copy-paste workflows (push / pull / build)
-
-## The game assets are NOT in this repo
-
-`Assets/` and `OriginalPacks/` are gitignored: the content is Gameloft/Marvel
-copyrighted material (and exceeds GitHub's 100 MB file limit). They live only in
-the local workbench, extracted from a legally owned IPA via
-`Tools/prepare_from_ipa.py`. This repo contains only original code and research.
-
-## Build
-
-    git clone https://github.com/omjoshi0925/STM-Remaster.git
-    cd STM-Remaster
-    ./scripts/apply_to_workbench.sh ~/Downloads/SpiderMan_Native_ARM64_Port_Workbench
-
-Xcode opens; select the **SpiderManTotalMayhem** scheme, your iPhone, Run.
-Host verification (no Xcode needed): `./hosttests/run_host_tests.sh <Assets path>`.
+## Not yet implemented
+Audio (VoxSoundManager), `.cff` in-engine cinematics, original boss phases &
+QTEs, wall traversal & web swing, camera areas, room streaming, menus beyond
+the flow screens, saves/ranks. See the CHANGELOG ledger for the live list.
