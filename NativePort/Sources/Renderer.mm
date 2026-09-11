@@ -661,6 +661,10 @@ fragment half4 frag(Out i                   [[stage_in]],
     for (bdae::EnemyActor &f : _foes)
         if (playing && f.update(nowMs, dtMs, heroPos) && _heroHP > 0)
             _heroHP = fmaxf(0.0f, _heroHP - f.stats.damage);
+    if (playing && _flow.takeCheckpointReached()) {
+        _heroHP = 100.0f;   // the original restores health at checkpoints (assumption, documented)
+        _popups.push_back({heroPos.x, heroPos.y, heroPos.z + 220.0f, 0, nowMs});   // 0 = CHECKPOINT
+    }
     if (playing) {
         int hits = _fists.update(nowMs, heroPos, _actor ? _actor->yaw() : 0.0f, _foes);
         _score += hits * 10;
@@ -987,7 +991,9 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
                     float rise = age / 1300.0f;
                     uint8_t a = (uint8_t)(255 * (1.0f - rise * rise));
                     float gh = 52 * sc, gs = gh / 29.0f;   // font row height 29 in the atlas
-                    char buf[16]; snprintf(buf, sizeof buf, "+%d", pp.value);
+                    char buf[16];
+                    if (pp.value == 0) snprintf(buf, sizeof buf, "CHECKPOINT");
+                    else snprintf(buf, sizeof buf, "+%d", pp.value);
                     float total = 0;
                     for (char *c = buf; *c; ++c) total += (*c == '+' ? 18 : kDigW[*c - '0']) * gs + 2 * sc;
                     float x = sx - total * 0.5f, y = sy - 90.0f * sc * rise - gh;

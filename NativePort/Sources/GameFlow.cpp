@@ -47,6 +47,7 @@ bool GameFlow::updatePlaying(const Vec3& hero, uint32_t) {
             if (dx * dx + dy * dy < visitRadius * visitRadius && std::fabs(dz) < 400.0f) {
                 visited[i] = true;
                 checkpoint = checkpointsAll[i];
+                checkpointReached = true;
             }
         }
         if (!visited[i]) all = false;

@@ -47,6 +47,8 @@ struct GameFlow {
     // if this update completed the level.
     bool updatePlaying(const Vec3& hero, uint32_t nowMs);
     int visitedCount() const;
+    bool takeCheckpointReached() { bool r = checkpointReached; checkpointReached = false; return r; }
+    bool checkpointReached = false;
     void onDeath(uint32_t nowMs) { phase = DEAD; phaseStartMs = nowMs; }
     void respawn(uint32_t nowMs) { phase = PLAYING; phaseStartMs = nowMs; }
 };
