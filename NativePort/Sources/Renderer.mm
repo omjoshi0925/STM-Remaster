@@ -974,12 +974,16 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
         }
         // spider-sense: the ticked ring, red, pulsing over enemies that have noticed you
         float pulse = 0.5f + 0.5f * sinf((float)CACurrentMediaTime() * 6.0f);
+        Vec3 hpos = _actor ? _actor->position() : Vec3{};
         for (const bdae::EnemyActor &f : _foes) {
             if (!f.alive() || f.state == bdae::EnemyActor::IDLE) continue;
+            float dd = sqrtf((f.x - hpos.x) * (f.x - hpos.x) + (f.y - hpos.y) * (f.y - hpos.y));
+            if (dd > 2600.0f) continue;   // sense only nearby threats, no x-ray walls
+            float fade = 1.0f - dd / 2600.0f;
             float sx, sy;
             if (!WorldToScreen(_lastVP, W, H, f.x, f.y, f.z + 210.0f, sx, sy)) continue;
             float rr = (30 + 8 * pulse) * sc;
-            quad(sx - rr, sy - rr, 2 * rr, 2 * rr, kRing, 255, 70, 60, (uint8_t)(140 + 100 * pulse));
+            quad(sx - rr, sy - rr, 2 * rr, 2 * rr, kRing, 255, 70, 60, (uint8_t)((90 + 110 * pulse) * fade + 30));
         }
         // score popups: "+N" in the original outlined font, rising and fading
         if (_fontAtlas) {
