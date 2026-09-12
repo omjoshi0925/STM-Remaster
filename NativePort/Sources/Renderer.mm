@@ -395,6 +395,7 @@ fragment half4 frag(Out i                   [[stage_in]],
     TMAudioManager *_audio;
     std::vector<bdae::EnemySounds> _foeSounds;   // parallel to _foes
     std::vector<std::string> _bossStat;          // "" unless the foe is a boss
+    std::vector<bool> _foeBarked;                // aggro voice line played once
     bdae::VoxTable _vox;
     int _sfxVariant;
     int _bossIndex;                              // foe index driving the boss bar, or -1
@@ -683,6 +684,14 @@ fragment half4 frag(Out i                   [[stage_in]],
                 const std::string &h = snd.hurt[(_sfxVariant++) % 3];
                 if (!h.empty()) [_audio playEvent:h.c_str()];
             }
+        }
+        // a thug shouts the first time it notices Spider-Man
+        if (playing && fi < _foeSounds.size() && fe.alive() &&
+            fe.state != bdae::EnemyActor::IDLE && fi < _foeBarked.size() && !_foeBarked[fi]) {
+            _foeBarked[fi] = true;
+            const std::string &v = _foeSounds[fi].voice;
+            float dx = fe.x - heroPos.x, dy = fe.y - heroPos.y;
+            if (!v.empty() && dx * dx + dy * dy < 2600.0f * 2600.0f) [_audio playEvent:v.c_str()];
         }
         // a boss noticing Spider-Man switches the music and claims the boss bar
         if (playing && fi < _bossStat.size() && !_bossStat[fi].empty() &&
@@ -1477,6 +1486,7 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
                     (std::strcmp(arch->prefix, "MeleeThug_gun") == 0);
         st.damage = (std::strncmp(arch->prefix, "Boss_", 5) == 0) ? 12.0f : 5.0f;
         _foeSounds.push_back(_vox.soundsFor(statName));
+        _foeBarked.push_back(false);
         _bossStat.push_back(statName.rfind("SANDMAN", 0) == 0 || statName.rfind("RHINO", 0) == 0 ? statName : std::string());
         _foes.emplace_back();
         _foes.back().bind(_npcModel[ti].get(), _room.get(), st,
@@ -1542,7 +1552,7 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
     _levelCounts.clear();
     _npcModel.clear(); _npcIndexCount.clear(); _npcIdle.clear();
     _npcAnchor.clear(); _npcs.clear(); _foes.clear();
-    _foeSounds.clear(); _bossStat.clear(); _bossIndex = -1; _winPlayed = NO;
+    _foeSounds.clear(); _foeBarked.clear(); _bossStat.clear(); _bossIndex = -1; _winPlayed = NO;
     _npcBones = nil;
     _room = std::make_unique<LevelRoom>();
     _levelReady = _room->loadFullLevel(assetRoot, kLevelDirs[idx % kLevelCount], levelErr);
