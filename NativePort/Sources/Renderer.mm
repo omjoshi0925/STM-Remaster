@@ -400,6 +400,8 @@ fragment half4 frag(Out i                   [[stage_in]],
     int _sfxVariant;
     int _bossIndex;                              // foe index driving the boss bar, or -1
     BOOL _winPlayed;
+    BOOL _musicAction;
+    uint32_t _musicSwitchMs;
     UILabel *_flowLabel;
     UILabel *_skipLabel;
     MTKView *_mtkView;
@@ -714,6 +716,19 @@ fragment half4 frag(Out i                   [[stage_in]],
             [_audio playEvent:"SFX_HURT_1"];
         }
     if (playing) _webEnergy = fminf(100.0f, _webEnergy + dt * 8.0f);
+    // the level music follows the fight: calm bed until several enemies are
+    // engaged, the mixed bed while they are
+    if (playing && _bossIndex < 0) {
+        int engaged = 0;
+        for (const bdae::EnemyActor &f : _foes)
+            if (f.alive() && f.state != bdae::EnemyActor::IDLE) ++engaged;
+        BOOL wantAction = engaged >= 3;
+        if (wantAction != _musicAction && nowMs - _musicSwitchMs > 6000) {
+            _musicAction = wantAction;
+            _musicSwitchMs = nowMs;
+            [_audio playMusic:(wantAction ? "M_DOWNTOWN_MIXED" : "M_DOWNTOWN_CALM") looping:YES];
+        }
+    }
     if (playing && _flow.comicNodeReached(heroPos) >= 0) {
         // a story beat: pop the next comic page, then resume play on tap
         _flow.comicResumesPlay = true;
@@ -1558,7 +1573,8 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
     _levelCounts.clear();
     _npcModel.clear(); _npcIndexCount.clear(); _npcIdle.clear();
     _npcAnchor.clear(); _npcs.clear(); _foes.clear();
-    _foeSounds.clear(); _foeBarked.clear(); _bossStat.clear(); _bossIndex = -1; _winPlayed = NO;
+    _foeSounds.clear(); _foeBarked.clear(); _bossStat.clear(); _bossIndex = -1;
+    _winPlayed = NO; _musicAction = NO; _musicSwitchMs = 0;
     _npcBones = nil;
     _room = std::make_unique<LevelRoom>();
     _levelReady = _room->loadFullLevel(assetRoot, kLevelDirs[idx % kLevelCount], levelErr);
