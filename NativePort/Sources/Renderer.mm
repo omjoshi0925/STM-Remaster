@@ -401,6 +401,7 @@ fragment half4 frag(Out i                   [[stage_in]],
     int _bossIndex;                              // foe index driving the boss bar, or -1
     BOOL _winPlayed;
     BOOL _musicAction;
+    uint32_t _scoreScreenMs;
     uint32_t _musicSwitchMs;
     UILabel *_flowLabel;
     UILabel *_skipLabel;
@@ -776,6 +777,7 @@ fragment half4 frag(Out i                   [[stage_in]],
         }
         if (_flow.phase == bdae::GameFlow::COMPLETE && !_winPlayed) {
             _winPlayed = YES; [_audio playMusic:"M_WIN" looping:NO];
+            _scoreScreenMs = nowMs;
         }
         if (_heroHP <= 0) {
             _flow.onDeath(nowMs);
@@ -1024,10 +1026,17 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
                     drawText("SPIDER-MAN IS DOWN", W * 0.5f, H * 0.40f, 64 * sc, 1, 255);
                     drawText("TAP TO RETRY", W * 0.5f, H * 0.62f, 40 * sc, 1, (uint8_t)(255 * pulse));
                     break;
-                case bdae::GameFlow::COMPLETE:
-                    drawText("LEVEL COMPLETE!", W * 0.5f, H * 0.40f, 72 * sc, 1, 255);
-                    drawText("TAP TO CONTINUE", W * 0.5f, H * 0.62f, 40 * sc, 1, (uint8_t)(255 * pulse));
+                case bdae::GameFlow::COMPLETE: {
+                    drawText("LEVEL COMPLETE!", W * 0.5f, H * 0.32f, 72 * sc, 1, 255);
+                    char line[64];
+                    snprintf(line, sizeof line, "SCORE %d", _score);
+                    drawText(line, W * 0.5f, H * 0.48f, 52 * sc, 1, 255);
+                    snprintf(line, sizeof line, "CHECKPOINTS %d/%d", _flow.visitedCount(),
+                             (int)_flow.checkpointsAll.size());
+                    drawText(line, W * 0.5f, H * 0.58f, 34 * sc, 1, 230);
+                    drawText("TAP TO CONTINUE", W * 0.5f, H * 0.74f, 40 * sc, 1, (uint8_t)(255 * pulse));
                     break;
+                }
                 default: break;
             }
         }
