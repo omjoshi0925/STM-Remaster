@@ -18,6 +18,17 @@ struct VoxEvent {
     bool music() const { return file.rfind("music/", 0) == 0; }
 };
 
+// Per-archetype sound set. The original slot vocabulary lives in
+// BehaviorSoundMapList.bin (Voice_1..12, hurt1..3, dies, attack_*); the
+// clips themselves are VoxSounds events named SFX_<STAT>_HURT_n / _DIES /
+// _VOICE_n. The slot-to-event numeric linkage is not decoded, so these are
+// resolved by name and fall back to the generic hero-side effects.
+struct EnemySounds {
+    std::string hurt[3];
+    std::string dies;
+    std::string voice;
+};
+
 struct VoxTable {
     std::map<std::string, VoxEvent> byName;
     bool load(const std::string& configsDir, std::string& err);
@@ -25,6 +36,10 @@ struct VoxTable {
         auto it = byName.find(event);
         return it == byName.end() ? nullptr : &it->second;
     }
+    // statName is the EnemysAttributeConfigs row ("THUG_KNIFE", "RHINO").
+    EnemySounds soundsFor(const std::string& statName) const;
+    // "M_BOSS_SANDMAN" / "M_BOSS_RHINO" ... or "" when the row is not a boss.
+    std::string bossMusicFor(const std::string& statName) const;
 };
 
 // Decoded audio: 16-bit signed PCM, interleaved.

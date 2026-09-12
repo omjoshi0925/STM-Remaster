@@ -89,6 +89,25 @@ bool VoxTable::load(const std::string& configsDir, std::string& err) {
     return true;
 }
 
+EnemySounds VoxTable::soundsFor(const std::string& statName) const {
+    EnemySounds s;
+    auto pick = [&](const std::string& name) { return find(name) ? name : std::string(); };
+    for (int i = 0; i < 3; ++i) {
+        s.hurt[i] = pick("SFX_" + statName + "_HURT_" + std::to_string(i + 1));
+        if (s.hurt[i].empty()) s.hurt[i] = pick("SFX_HURT_" + std::to_string(i + 1));
+    }
+    s.dies = pick("SFX_" + statName + "_DIES");
+    if (s.dies.empty()) s.dies = pick("SFX_DIE");
+    s.voice = pick("SFX_" + statName + "_VOICE_1");
+    if (s.voice.empty()) s.voice = pick("SFX_THUG_VOICE_1");
+    return s;
+}
+
+std::string VoxTable::bossMusicFor(const std::string& statName) const {
+    std::string m = "M_BOSS_" + statName;
+    return find(m) ? m : std::string();
+}
+
 bool WavClip::load(const std::string& path, std::string& err) {
     std::vector<uint8_t> b;
     if (!readAll(path, b)) { err = "cannot read " + path; return false; }
