@@ -71,6 +71,40 @@ int main(int argc, char** argv) {
         ck(rms > 200.0 && peak > 3000 && peak <= 32767, "ADPCM decode yields real signal", d);
     } else ck(false, "punch clip decodes", e);
 
+    // per-archetype sound sets resolve for every enemy the levels place
+    const char* stats[] = {"THUG_KNIFE", "THUG_BAT", "THUG_MOLOTOV", "THUG_GUN", "SANDMAN", "RHINO"};
+    std::string weak;
+    for (const char* st : stats) {
+        EnemySounds es = vox.soundsFor(st);
+        bool ok = !es.dies.empty() && !es.hurt[0].empty() && !es.voice.empty();
+        if (!ok) weak += std::string(st) + " ";
+        bool own = es.dies.rfind(std::string("SFX_") + st, 0) == 0;
+        std::printf("  %-12s hurt=%s dies=%s%s\n", st, es.hurt[0].c_str(), es.dies.c_str(),
+                    own ? "" : "  (generic fallback)");
+    }
+    ck(weak.empty(), "every archetype resolves hurt, death and voice events", weak);
+    ck(vox.soundsFor("THUG_KNIFE").dies == "SFX_THUG_KNIFE_DIES",
+       "archetype-specific death events are preferred over the generic one");
+    ck(vox.soundsFor("NOT_A_REAL_ENEMY").dies == "SFX_DIE",
+       "unknown archetypes fall back to the generic death event");
+
+    // boss music exists for the bosses the first two levels place
+    ck(vox.bossMusicFor("SANDMAN") == "M_BOSS_SANDMAN" &&
+       vox.bossMusicFor("RHINO") == "M_BOSS_RHINO" &&
+       vox.bossMusicFor("THUG_KNIFE").empty(),
+       "boss music resolves for bosses only");
+
+    // every clip an archetype set points at must decode
+    for (const char* st : {"THUG_KNIFE", "RHINO"}) {
+        EnemySounds es = vox.soundsFor(st);
+        const VoxEvent* d = vox.find(es.dies);
+        WavClip c;
+        std::string ce;
+        bool ok = d && c.load(root + "/sounds/" + d->file, ce) && c.seconds() > 0.05;
+        ck(ok, (std::string(st) + " death clip decodes").c_str(),
+           ok ? std::to_string(c.seconds()) + " s" : ce);
+    }
+
     std::printf("\n%s (%d failures)\n", fails ? "MILESTONE 14 AUDIO FAILED" : "MILESTONE 14 AUDIO PASSED", fails);
     return fails ? 1 : 0;
 }
