@@ -703,6 +703,12 @@ fragment half4 frag(Out i                   [[stage_in]],
         if (_bossIndex >= 0 && (size_t)_bossIndex == fi && !fe.alive()) _bossIndex = -1;
     }
     for (bdae::EnemyActor &f : _foes)
+        if (playing && f.stats.ranged && f.state == bdae::EnemyActor::ATTACK &&
+            f.stateStartMs == nowMs) {
+            // gun and molotov thugs have their own firing sounds
+            const char *shot = (f.stats.rangedRange > 2000) ? "SFX_RHINO_TRAMP" : "SFX_THUG_GUN_SHOOT";
+            [_audio playEvent:shot];
+        }
         if (playing && f.update(nowMs, dtMs, heroPos) && _heroHP > 0) {
             _heroHP = fmaxf(0.0f, _heroHP - f.stats.damage);
             [_audio playEvent:"SFX_HURT_1"];
