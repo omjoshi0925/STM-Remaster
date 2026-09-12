@@ -427,3 +427,38 @@ overlay in the original font; spider-sense limited to 2600 u with distance
 fade; mid-level comic beats from the original 18 Comic trigger nodes
 (sequential pages after the intro — node-to-page table still undecoded);
 milestone 12 host suite (11 suites total); Tools/inspect_atlas.py; README.
+
+## Milestone 14 — the original sound (2026-09-10)
+
+### IMPLEMENTED
+Audio, end to end from the original data. `VoxSounds.bin` decoded: a 493-row
+event table mapping names (`M_DOWNTOWN_CALM`, `SFX_PUNCH_IMPACT_1`) to clip
+paths plus flags (`Audio.hpp/cpp`). `sounds.pack` ships 501 RIFF WAVs in IMA
+ADPCM (format 17, 4-bit, 22-32 kHz); a decoder expands them to PCM16 in
+plain C++. `TMAudioManager` (AVAudioEngine: one looping music node, an
+8-voice effect pool, PCM buffer cache) plays by event name. Hooks: level
+music on start, punch impact/swoosh (impact_2 during combos), hero hurt,
+death + M_LOSE, web throw, bonus pickup (SFX_ORBS_COLLECT), checkpoint
+(SFX_SPIDER_LOGO_IN), music stop on completion.
+
+### VERIFIED LOCALLY (13 suites green)
+All 493 events parse; all 493 referenced clips exist on disk; music bed
+decodes to 123.44 s at 32 kHz stereo; effects decode at 22.05 kHz mono with
+real signal (rms 3447, peak 20475 on the punch impact); every event name the
+renderer uses is checked to exist in the table.
+
+### REQUIRES DEVICE VALIDATION
+Playback latency, mixing balance (music at 0.55), memory of decoded buffers
+(a full music bed is ~15 MB of PCM), AVAudioSession behaviour with the boot
+videos.
+
+### KNOWN LIMITATIONS
+Event choices for gameplay moments are ours (BehaviorSoundMapList.bin and
+MC_SOUND.bin hold the original per-state mappings and are not decoded yet);
+music is one looping bed per level rather than the original calm/action
+crossfade; no 3D panning; enemy voice/death clips not yet wired per
+archetype.
+
+### ASSET NOTE
+Requires `sounds.pack` extracted to `Assets/sounds/` (146 MB; the app bundle
+grows accordingly).

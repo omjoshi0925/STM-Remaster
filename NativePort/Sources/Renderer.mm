@@ -6,6 +6,7 @@
 #import <UIKit/UIKit.h>
 #import <QuartzCore/QuartzCore.h>
 #import <AVFoundation/AVFoundation.h>
+#import "AudioManager.h"
 #include "BDAEModel.hpp"
 #include "Level.hpp"
 #include "Character.hpp"
@@ -391,6 +392,7 @@ fragment half4 frag(Out i                   [[stage_in]],
     std::vector<Popup> _popups;
     int _comboHits; uint32_t _comboLastMs;
     float _webEnergy;
+    TMAudioManager *_audio;
     UILabel *_flowLabel;
     UILabel *_skipLabel;
     MTKView *_mtkView;
@@ -522,6 +524,7 @@ fragment half4 frag(Out i                   [[stage_in]],
                            assetRoot + "/xlsStrings/MAIN_EN.data", se))
             NSLog(@"[TotalMayhem] strings: %s", se.c_str());
     }
+    _audio = [[TMAudioManager alloc] initWithAssetRoot:assetRoot];
     [self loadLevelIndex:0];
 
     if (_heroReady) {
@@ -660,8 +663,10 @@ fragment half4 frag(Out i                   [[stage_in]],
     uint32_t dtMs = (uint32_t)(dt * 1000.0f);
     Vec3 heroPos = _actor ? _actor->position() : Vec3{0, 0, 0};
     for (bdae::EnemyActor &f : _foes)
-        if (playing && f.update(nowMs, dtMs, heroPos) && _heroHP > 0)
+        if (playing && f.update(nowMs, dtMs, heroPos) && _heroHP > 0) {
             _heroHP = fmaxf(0.0f, _heroHP - f.stats.damage);
+            [_audio playEvent:"SFX_HURT_1"];
+        }
     if (playing) _webEnergy = fminf(100.0f, _webEnergy + dt * 8.0f);
     if (playing && _flow.comicNodeReached(heroPos) >= 0) {
         // a story beat: pop the next comic page, then resume play on tap
@@ -675,11 +680,15 @@ fragment half4 frag(Out i                   [[stage_in]],
     }
     if (playing && _flow.takeCheckpointReached()) {
         _heroHP = 100.0f;   // the original restores health at checkpoints (assumption, documented)
+        [_audio playEvent:"SFX_SPIDER_LOGO_IN"];
         _popups.push_back({heroPos.x, heroPos.y, heroPos.z + 220.0f, 0, nowMs});   // 0 = CHECKPOINT
     }
     if (playing) {
         int hits = _fists.update(nowMs, heroPos, _actor ? _actor->yaw() : 0.0f, _foes);
         _score += hits * 10;
+        if (_fists.justStruck)
+            [_audio playEvent:(hits > 0 ? (_comboHits >= 2 ? "SFX_PUNCH_IMPACT_2" : "SFX_PUNCH_IMPACT_1")
+                                        : "SFX_PUNCH_SWOOSH_1")];
         if (hits > 0) {
             _popups.push_back({heroPos.x, heroPos.y, heroPos.z + 190.0f, hits * 10, nowMs});
             _comboHits = (nowMs - _comboLastMs < 1500) ? _comboHits + 1 : 1;
@@ -701,9 +710,14 @@ fragment half4 frag(Out i                   [[stage_in]],
             float dx = b.x - heroPos.x, dy = b.y - heroPos.y;
             if (dx * dx + dy * dy < 150.0f * 150.0f && fabsf(b.z - heroPos.z) < 300.0f) {
                 _bonusTaken[i] = true; _score += 25; _popups.push_back({b.x, b.y, b.z + 100.0f, 25, nowMs});
+                [_audio playEvent:"SFX_ORBS_COLLECT"];
             }
         }
-        if (_heroHP <= 0) _flow.onDeath(nowMs);
+        if (_heroHP <= 0) {
+            _flow.onDeath(nowMs);
+            [_audio playEvent:"SFX_DIE"];
+            [_audio playMusic:"M_LOSE" looping:NO];
+        }
         else _flow.updatePlaying(heroPos, nowMs);
     }
     if (_heroReady) {
@@ -1549,11 +1563,14 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
             _flow.advanceComic(nowMs);
         } else if (_flow.phase == bdae::GameFlow::TITLE) {
             _flow.startPlay(nowMs);
+            // Level 1 is the downtown set; Level 2 uses its combat mix.
+            [_audio playMusic:(_flow.levelIndex == 0 ? "M_DOWNTOWN_CALM" : "M_DOWNTOWN_MIXED") looping:YES];
         } else if (_flow.phase == bdae::GameFlow::DEAD) {
             _heroHP = 100.0f;
             if (_actor) _actor->spawnAt(_flow.checkpoint, _flow.checkpointYaw);
             _flow.respawn(nowMs);
         } else if (_flow.phase == bdae::GameFlow::COMPLETE) {
+            [_audio stopMusic];
             [self loadLevelIndex:(_flow.levelIndex + 1) % kLevelCount];
         }
         return;
@@ -1588,6 +1605,7 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
                     _score += 15;
                     _popups.push_back({best->x, best->y, best->z + 190.0f, 15, nowMs});
                     _fists.tryPunch(nowMs);   // reuse the strike animation for now
+                    [_audio playEvent:"SFX_WEB_THROW_1"];
                 }
             }
             return;
