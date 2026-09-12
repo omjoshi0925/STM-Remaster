@@ -17,6 +17,8 @@ $CXX -std=c++17 -O2 -I "$SRC" -o /tmp/stm_m7       "$SRC/UIKitData.cpp" mileston
 $CXX -std=c++17 -O2 -I "$SRC" -o /tmp/stm_m8       "$SRC/BDAEModel.cpp" "$SRC/Level.cpp" "$SRC/Character.cpp" "$SRC/Combat.cpp" "$SRC/GameFlow.cpp" milestone8_test.cpp
 $CXX -std=c++17 -O2 -I "$SRC" -o /tmp/stm_m9       "$SRC/BDAEModel.cpp" "$SRC/Level.cpp" "$SRC/Character.cpp" "$SRC/Combat.cpp" "$SRC/GameFlow.cpp" milestone9_test.cpp
 $CXX -std=c++17 -O2 -I "$SRC" -o /tmp/stm_m10      "$SRC/BDAEModel.cpp" "$SRC/Level.cpp" milestone10_test.cpp
+$CXX -std=c++17 -O2 -I "$SRC" -o /tmp/stm_audit    "$SRC/BDAEModel.cpp" "$SRC/Level.cpp" asset_audit_test.cpp
+$CXX -std=c++17 -O2 -I "$SRC" -o /tmp/stm_fmt      "$SRC/BDAEModel.cpp" "$SRC/Level.cpp" format_regression_test.cpp
 $CXX -std=c++17 -O2 -I "$SRC" -o /tmp/stm_m12      "$SRC/BDAEModel.cpp" "$SRC/Level.cpp" "$SRC/Character.cpp" "$SRC/Combat.cpp" "$SRC/GameFlow.cpp" milestone12_test.cpp
 echo "== bdae selftest ==";  /tmp/stm_selftest "$ASSETS/entities/meshes_bin/spiderman_mesh.bdae" "$ASSETS/entities/meshes_bin/spiderman_anim.bdae"
 echo "== level test ==";     /tmp/stm_level "$ASSETS"
@@ -28,3 +30,5 @@ echo "== milestone 8 ==";    /tmp/stm_m8 "$ASSETS"
 echo "== milestone 9 ==";    /tmp/stm_m9 "$ASSETS"
 echo "== milestone 10 ==";   /tmp/stm_m10 "$ASSETS"
 echo "== milestone 12 ==";   /tmp/stm_m12 "$ASSETS"
+echo "== asset audit ==";    /tmp/stm_audit "$ASSETS"
+echo "== format regression =="; /tmp/stm_fmt "$ASSETS"
