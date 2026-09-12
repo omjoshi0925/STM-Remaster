@@ -7,6 +7,7 @@
 #import <QuartzCore/QuartzCore.h>
 #import <AVFoundation/AVFoundation.h>
 #import "AudioManager.h"
+#include "Audio.hpp"
 #include "BDAEModel.hpp"
 #include "Level.hpp"
 #include "Character.hpp"
