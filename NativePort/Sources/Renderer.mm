@@ -393,6 +393,12 @@ fragment half4 frag(Out i                   [[stage_in]],
     int _comboHits; uint32_t _comboLastMs;
     float _webEnergy;
     TMAudioManager *_audio;
+    std::vector<bdae::EnemySounds> _foeSounds;   // parallel to _foes
+    std::vector<std::string> _bossStat;          // "" unless the foe is a boss
+    bdae::VoxTable _vox;
+    int _sfxVariant;
+    int _bossIndex;                              // foe index driving the boss bar, or -1
+    BOOL _winPlayed;
     UILabel *_flowLabel;
     UILabel *_skipLabel;
     MTKView *_mtkView;
@@ -525,6 +531,10 @@ fragment half4 frag(Out i                   [[stage_in]],
             NSLog(@"[TotalMayhem] strings: %s", se.c_str());
     }
     _audio = [[TMAudioManager alloc] initWithAssetRoot:assetRoot];
+    {
+        std::string ve;
+        if (!_vox.load(assetRoot + "/configs", ve)) NSLog(@"[TotalMayhem] vox table: %s", ve.c_str());
+    }
     [self loadLevelIndex:0];
 
     if (_heroReady) {
@@ -662,6 +672,27 @@ fragment half4 frag(Out i                   [[stage_in]],
     uint32_t nowMs = (uint32_t)(now * 1000.0);
     uint32_t dtMs = (uint32_t)(dt * 1000.0f);
     Vec3 heroPos = _actor ? _actor->position() : Vec3{0, 0, 0};
+    for (size_t fi = 0; fi < _foes.size(); ++fi) {
+        bdae::EnemyActor &fe = _foes[fi];
+        bool wasHurt = false, died = false;
+        fe.takeEvents(wasHurt, died);
+        if (playing && fi < _foeSounds.size()) {
+            const bdae::EnemySounds &snd = _foeSounds[fi];
+            if (died && !snd.dies.empty()) [_audio playEvent:snd.dies.c_str()];
+            else if (wasHurt) {
+                const std::string &h = snd.hurt[(_sfxVariant++) % 3];
+                if (!h.empty()) [_audio playEvent:h.c_str()];
+            }
+        }
+        // a boss noticing Spider-Man switches the music and claims the boss bar
+        if (playing && fi < _bossStat.size() && !_bossStat[fi].empty() &&
+            fe.alive() && fe.state != bdae::EnemyActor::IDLE && _bossIndex < 0) {
+            _bossIndex = (int)fi;
+            std::string bm = _vox.bossMusicFor(_bossStat[fi]);
+            if (!bm.empty()) [_audio playMusic:bm.c_str() looping:YES];
+        }
+        if (_bossIndex >= 0 && (size_t)_bossIndex == fi && !fe.alive()) _bossIndex = -1;
+    }
     for (bdae::EnemyActor &f : _foes)
         if (playing && f.update(nowMs, dtMs, heroPos) && _heroHP > 0) {
             _heroHP = fmaxf(0.0f, _heroHP - f.stats.damage);
@@ -712,6 +743,9 @@ fragment half4 frag(Out i                   [[stage_in]],
                 _bonusTaken[i] = true; _score += 25; _popups.push_back({b.x, b.y, b.z + 100.0f, 25, nowMs});
                 [_audio playEvent:"SFX_ORBS_COLLECT"];
             }
+        }
+        if (_flow.phase == bdae::GameFlow::COMPLETE && !_winPlayed) {
+            _winPlayed = YES; [_audio playMusic:"M_WIN" looping:NO];
         }
         if (_heroHP <= 0) {
             _flow.onDeath(nowMs);
@@ -872,7 +906,9 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
         kHpFrame{279, 446, 139, 18}, kHpFill{92, 476, 133, 16}, kWebMeter{0, 270, 212, 32},
         kKnob{177, 212, 50, 52}, kRing{345, 4, 58, 58}, kBtn{59, 212, 57, 52},
         kFist{355, 303, 38, 40}, kFistHot{395, 303, 35, 40}, kDodge{471, 303, 30, 36}, kWeb{230, 302, 38, 40},
-        kToken{262, 212, 52, 52}, kFull{0, 0, 4, 4};
+        kToken{262, 212, 52, 52}, kFull{0, 0, 4, 4},
+        kBossFrame{266, 452, 246, 20}, kBossFill{230, 486, 146, 16},
+        kComboWord{0, 404, 104, 26}, kCombosWord{0, 430, 100, 26};
     // font_outline_big.tga digits (row y=34, h=24) and '+'
     static const uint16_t kDigX[10] = {20, 44, 60, 81, 104, 127, 148, 170, 192, 214};
     static const uint16_t kDigW[10] = {18, 11, 18, 18, 18, 18, 16, 18, 18, 17};
@@ -996,6 +1032,14 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
             if (!WorldToScreen(_lastVP, W, H, b.x, b.y, b.z + 70.0f + 12.0f * sinf((float)CACurrentMediaTime() * 3.0f + i), sx, sy)) continue;
             circle(sx, sy, 22 * sc, kToken, 240);
         }
+        // boss health bar, centred under the top-left cluster
+        if (_bossIndex >= 0 && (size_t)_bossIndex < _foes.size() && _foes[_bossIndex].alive()) {
+            const bdae::EnemyActor &bf = _foes[_bossIndex];
+            float frac = bf.stats.hp > 0 ? fmaxf(0.0f, bf.hp / bf.stats.hp) : 0.0f;
+            float bw = 520 * sc, bx = (W - bw) * 0.5f, by = 128 * sc;
+            quad(bx, by, bw, 28 * sc, kBossFrame, 255, 255, 255, 245);
+            quad(bx + 6 * sc, by + 5 * sc, (bw - 12 * sc) * frac, 18 * sc, kBossFill, 255, 255, 255, 255);
+        }
         // spider-sense: the ticked ring, red, pulsing over enemies that have noticed you
         float pulse = 0.5f + 0.5f * sinf((float)CACurrentMediaTime() * 6.0f);
         Vec3 hpos = _actor ? _actor->position() : Vec3{};
@@ -1045,11 +1089,17 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
         drawText("PAUSED", W * 0.5f, H * 0.40f, 72 * sc, 1, 255);
         drawText("TAP THE BUBBLE TO RESUME", W * 0.5f, H * 0.60f, 34 * sc, 1, 220);
     }
-    // combo banner (right side), like the original "N COMBOS!"
-    if (_fontAtlas && _flow.phase == bdae::GameFlow::PLAYING && _comboHits >= 2 && nowMs - _comboLastMs < 1200) {
-        char cb[32]; snprintf(cb, sizeof cb, "%d COMBOS!", _comboHits);
-        uint8_t a = (uint8_t)(255 * (1.0f - (nowMs - _comboLastMs) / 1200.0f));
-        drawText(cb, W - 40 * sc, H * 0.30f, 56 * sc, 2, a);
+    // combo banner: the original COMBO / COMBOS word art, with the count in
+    // the outlined font beside it
+    if (_uiAtlas && _flow.phase == bdae::GameFlow::PLAYING && _comboHits >= 2 && nowMs - _comboLastMs < 1200) {
+        float t = (nowMs - _comboLastMs) / 1200.0f;
+        uint8_t a = (uint8_t)(255 * (1.0f - t * t));
+        float wh = 62 * sc, ww = wh * (100.0f / 26.0f);
+        float x = W - 40 * sc - ww, y = H * 0.28f - wh * 0.5f;
+        useTex(_uiAtlas);
+        quad(x, y, ww, wh, _comboHits >= 3 ? kCombosWord : kComboWord, 255, 255, 255, a);
+        char cnt[8]; snprintf(cnt, sizeof cnt, "%d", _comboHits);
+        drawText(cnt, x - 14 * sc, y + 8 * sc, 56 * sc, 2, a);
     }
     if (verts.empty()) return;
     if (!segs.empty()) segs.back().count = verts.size() - segs.back().start;
@@ -1421,10 +1471,13 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
                          (float)((_npcs.size() * 977) % 4000)});
         bdae::EnemyStats st;
         auto sn = kStatName.find(arch->prefix);
-        if (sn != kStatName.end() && statTable.count(sn->second)) st = statTable[sn->second];
+        std::string statName = (sn != kStatName.end()) ? sn->second : std::string();
+        if (!statName.empty() && statTable.count(statName)) st = statTable[statName];
         st.ranged = (std::strncmp(arch->prefix, "Range", 5) == 0) ||
                     (std::strcmp(arch->prefix, "MeleeThug_gun") == 0);
         st.damage = (std::strncmp(arch->prefix, "Boss_", 5) == 0) ? 12.0f : 5.0f;
+        _foeSounds.push_back(_vox.soundsFor(statName));
+        _bossStat.push_back(statName.rfind("SANDMAN", 0) == 0 || statName.rfind("RHINO", 0) == 0 ? statName : std::string());
         _foes.emplace_back();
         _foes.back().bind(_npcModel[ti].get(), _room.get(), st,
                           en.pos.x, en.pos.y, gz, en.yaw);
@@ -1489,6 +1542,7 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
     _levelCounts.clear();
     _npcModel.clear(); _npcIndexCount.clear(); _npcIdle.clear();
     _npcAnchor.clear(); _npcs.clear(); _foes.clear();
+    _foeSounds.clear(); _bossStat.clear(); _bossIndex = -1; _winPlayed = NO;
     _npcBones = nil;
     _room = std::make_unique<LevelRoom>();
     _levelReady = _room->loadFullLevel(assetRoot, kLevelDirs[idx % kLevelCount], levelErr);
@@ -1579,7 +1633,7 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
     CGFloat sw = UIScreen.mainScreen.bounds.size.width;
     CGFloat sh = UIScreen.mainScreen.bounds.size.height;
     // top-left corner: single tap = pause, double-height zone toggles atlas sheet
-    if (p.x < 44 && p.y < 44) { _paused = !_paused; return; }
+    if (p.x < 44 && p.y < 44) { _paused = !_paused; [_audio setMuted:_paused]; return; }
     if (p.x < 30 && p.y > 60 && p.y < 100) { _showAtlasSheet = !_showAtlasSheet; return; }
     // the three action buttons (layout in 768-pt space, mirrored in drawHUD)
     {
