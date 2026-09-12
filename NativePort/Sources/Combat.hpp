@@ -56,6 +56,10 @@ struct EnemyActor {
     void takeHit(float dmg, uint32_t nowMs, float fromX, float fromY);
     bool alive() const { return state != DEAD; }
     uint32_t diedMs = 0;                      // set when entering DEAD
+    bool justHurt = false, justDied = false;  // one-shot, cleared by takeEvents()
+    void takeEvents(bool& hurt, bool& died) {
+        hurt = justHurt; died = justDied; justHurt = justDied = false;
+    }
     // 0..1 sink factor for corpse removal (starts 3 s after death, 1 s long)
     float corpseSink(uint32_t nowMs) const {
         if (state != DEAD || !diedMs || nowMs < diedMs + 3000) return 0;
