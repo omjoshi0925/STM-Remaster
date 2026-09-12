@@ -462,3 +462,42 @@ archetype.
 ### ASSET NOTE
 Requires `sounds.pack` extracted to `Assets/sounds/` (146 MB; the app bundle
 grows accordingly).
+
+## Milestone 15 — audio depth and the last HUD pieces (2026-09-10)
+
+### IMPLEMENTED
+Per-archetype enemy audio: `VoxTable::soundsFor` resolves
+`SFX_<STAT>_HURT_1..3` / `_DIES` / `_VOICE_1` by archetype with generic
+fallbacks, so a knife thug and Rhino no longer share one death sound.
+`EnemyActor` exposes one-shot hurt/death events for the renderer. Boss
+encounters switch to their own music (`M_BOSS_SANDMAN`, `M_BOSS_RHINO`) when
+the boss first notices Spider-Man, and claim the boss health bar — drawn with
+the atlas's own frame and red fill. The combo banner now uses the original
+COMBO / COMBOS word art instead of typed text. `M_WIN` plays on level
+completion; pausing mutes the mix. Docs: `docs/FORMAT_AUDIO.md` (VoxSounds
+table, the IMA ADPCM block layout, and the undecoded slot vocabularies in
+BehaviorSoundMapList.bin / MC_SOUND.bin). Tool: `Tools/dump_vox.py` lists the
+event table and verifies every clip is present.
+
+### VERIFIED LOCALLY (13 suites green)
+All six archetypes in Levels 1-2 resolve their own hurt/death/voice events;
+archetype-specific deaths are preferred and unknown archetypes fall back;
+boss music resolves for bosses only; the THUG_KNIFE (1.70 s) and RHINO
+(1.87 s) death clips decode.
+
+### REQUIRES DEVICE VALIDATION
+Boss-bar placement and the combo word art at device resolution, boss music
+switching, mix balance with many overlapping effect voices.
+
+### KNOWN LIMITATIONS
+The slot-to-event linkage in BehaviorSoundMapList.bin / MC_SOUND.bin is still
+undecoded, so which event fires at which moment remains our choice; enemy
+voice barks are resolved but not yet triggered on aggro; no calm/action music
+crossfade.
+
+### Milestone 15.1 — the fight can be heard (2026-09-10)
+Thugs bark once when they notice Spider-Man (the resolved voice events were
+never triggered); ranged enemies play their firing sounds; the level music
+moves between the calm and action beds as enemies engage and disengage
+(rate-limited, boss music takes precedence); the completion screen reports
+score and checkpoints in the original font.
