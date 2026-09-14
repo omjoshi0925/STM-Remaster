@@ -23,6 +23,8 @@ need_file entities/meshes_bin/spiderman_anim.bdae "hero animation"
 want_dir comic1          "comic pages for story beats"
 want_dir videos          "boot movies (Tools/extract_videos.sh)"
 want_file levelnew_01/meshes_bin/lvl01_sky.bdae "Level 1 skybox"
+want_dir  levelnew_01/cinematics "cinematic .cff scripts the triggers reference"
+want_dir  sounds                 "sounds.pack - music and effects"
 for n in 03 04 05 06 07 08 09 10 11 12; do
   [ -d "$A/levelnew_$n" ] || { echo "  warn levelnew_$n - L1/L2 reference textures from other level packs"; warn=1; }
 done
