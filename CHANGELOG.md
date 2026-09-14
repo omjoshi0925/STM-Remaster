@@ -501,3 +501,38 @@ never triggered); ranged enemies play their firing sounds; the level music
 moves between the calm and action beds as enemies engage and disengage
 (rate-limited, boss music takes precedence); the completion screen reports
 score and checkpoints in the original font.
+
+## Milestone 16 — the level script (2026-09-12)
+
+### IMPLEMENTED
+The authored scripting layer, which the port had been ignoring entirely.
+`.irr` parsing now yields Trigger and TriggerRestore volumes (69 in Level 1)
+with the tag taken from the node name, Cinematic nodes linked to their
+same-named trigger by tag (35 of Level 1's triggers name a .cff script),
+CameraArea volumes with their CamCtrlPoint children resolved through the
+`!^Owner^CameraArea` id (44 areas, 193 points), and RestorePoint markers.
+Camera-area extents are derived from the bounding box of their own control
+points, since the authored extent is not stored on the node. `Script.hpp`
+adds `TriggerRuntime`: bind a level, get the volumes the hero newly entered,
+each firing once. The renderer runs the script during play, respawns at the
+nearest RestorePoint, and lets camera areas bias the camera toward their
+control-point centroid.
+
+### VERIFIED LOCALLY (14 suites green)
+69 trigger volumes, 44 camera areas (all with control points), 20 restore
+points; the authored vocabulary (`lv1_start`, `3thugs`, `lv1_boss`,
+`if_boss_die`, `opendoor`) is recovered; the spawn sits inside a camera
+volume and 10 of 16 checkpoints are covered; volumes fire exactly once and
+walking the level fires all 69; Level 2 parses its own 56 triggers and 49
+camera areas.
+
+### REQUIRES DEVICE VALIDATION
+Camera bias strength and easing, respawn placement at RestorePoints, trigger
+volume sizes in play.
+
+### KNOWN LIMITATIONS
+Authored trigger and camera extents are not stored on the nodes, so volumes
+use a conservative box and camera areas use their control-point bounds. The
+.cff cinematic format is still undecoded - firing a trigger reports the
+script path rather than playing it. Tags are recognised but only the sense
+and ambush cues act; completion still uses the checkpoint chain.
