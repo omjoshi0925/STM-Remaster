@@ -1674,7 +1674,18 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
             [_audio playMusic:(_flow.levelIndex == 0 ? "M_DOWNTOWN_CALM" : "M_DOWNTOWN_MIXED") looping:YES];
         } else if (_flow.phase == bdae::GameFlow::DEAD) {
             _heroHP = 100.0f;
-            if (_actor) _actor->spawnAt(_flow.checkpoint, _flow.checkpointYaw);
+            // the original recovers at its RestorePoint markers; fall back to
+            // the checkpoint when none is closer
+            bdae::Vec3 target = _flow.checkpoint;
+            if (_levelReady && !_room->restorePoints.empty()) {
+                float best = 1e18f;
+                for (const bdae::Vec3 &rp : _room->restorePoints) {
+                    float dx = rp.x - _flow.checkpoint.x, dy = rp.y - _flow.checkpoint.y;
+                    float d = dx * dx + dy * dy;
+                    if (d < best) { best = d; target = rp; }
+                }
+            }
+            if (_actor) _actor->spawnAt(target, _flow.checkpointYaw);
             _flow.respawn(nowMs);
         } else if (_flow.phase == bdae::GameFlow::COMPLETE) {
             [_audio stopMusic];
