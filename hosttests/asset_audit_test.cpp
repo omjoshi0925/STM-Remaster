@@ -98,6 +98,23 @@ int main(int argc, char** argv) {
         ck(L.hasSpawn && !L.navmesh.indices.empty() && !L.collision.indices.empty(),
            (std::string(lvl) + ": spawn, navmesh and collision present").c_str());
     }
+    // the authored script must resolve: every cinematic a trigger names
+    {
+        LevelRoom L1; std::string e1;
+        if (L1.loadFullLevel(root, "levelnew_01", e1)) {
+            int miss = 0; std::string firstMiss;
+            for (auto& t : L1.triggers) {
+                if (t.cinematic.empty()) continue;
+                FILE* f = fopen((root + "/levelnew_01/" + t.cinematic).c_str(), "rb");
+                if (f) fclose(f); else { ++miss; if (firstMiss.empty()) firstMiss = t.cinematic; }
+            }
+            std::printf("scripting: %zu triggers, %zu camera volumes, %zu restore points\n",
+                        L1.triggers.size(), L1.cameraVolumes.size(), L1.restorePoints.size());
+            ck(!L1.triggers.empty() && !L1.cameraVolumes.empty(), "level scripting parses");
+            ck(miss == 0, "every cinematic the triggers name is present", firstMiss);
+        }
+    }
+
     // UI assets the HUD and flow depend on
     for (const char* f : {"sprites/interface.tga", "sprites/font_outline_big.tga",
                           "xlsStrings/MAIN.map", "xlsStrings/MAIN_EN.data",
