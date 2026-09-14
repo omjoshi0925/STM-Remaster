@@ -115,6 +115,8 @@ bool IrrScene::load(const std::string& path, std::string& err) {
             else if (key == "Name")                   n.name = val;
             else if (key == "!GameType")              n.gameType = val;
             else if (key == "MeshFile" || key == "#MeshFile") { if (n.meshFile.empty()) n.meshFile = normPath(val); }
+            else if (key == "!ScriptFile") n.scriptFile = normPath(val);
+            else if (key.rfind("!^Owner^CameraArea", 0) == 0) n.ownerCameraArea = std::atoi(val.c_str());
             else if (key == "Visible")                n.visible = (val == "true" || val == "1");
             else if (key == "Position") { auto v = parseFloats(val); if (v.size() >= 3) n.position = { v[0], v[1], v[2] }; }
             else if (key == "Scale")    { auto v = parseFloats(val); if (v.size() >= 3) n.scale    = { v[0], v[1], v[2] }; }
@@ -322,6 +324,45 @@ bool LevelRoom::load(const std::string& assetRoot, const std::string& levelDir,
                                   1.0f - 2.0f * (n.rotation.y * n.rotation.y + n.rotation.z * n.rotation.z));
             enemies.push_back({ n.gameType, Vec3{ n.absolute.m[12], n.absolute.m[13], n.absolute.m[14] }, yw });
         }
+        else if (n.gameType == "Trigger" || n.gameType == "TriggerRestore") {
+            TriggerVolume t;
+            t.name = n.name;
+            std::string low = n.name;
+            for (char& c : low) c = (char)std::tolower((unsigned char)c);
+            size_t us = low.find('_');
+            t.tag = (us == std::string::npos) ? low : low.substr(us + 1);
+            t.center = Vec3{ n.absolute.m[12], n.absolute.m[13], n.absolute.m[14] };
+            // authored as a unit box scaled by the node transform; a floor keeps
+            // degenerate (zero-scale) markers usable as small volumes
+            t.half = Vec3{ std::fmax(std::fabs(n.scale.x) * 50.0f, 120.0f),
+                           std::fmax(std::fabs(n.scale.y) * 50.0f, 120.0f),
+                           std::fmax(std::fabs(n.scale.z) * 50.0f, 200.0f) };
+            triggers.push_back(t);
+        }
+        else if (n.gameType == "Cinematic") {
+            std::string low = n.name;
+            for (char& c : low) c = (char)std::tolower((unsigned char)c);
+            size_t us = low.find('_');
+            cinematicByTag[(us == std::string::npos) ? low : low.substr(us + 1)] = n.scriptFile;
+        }
+        else if (n.gameType == "CameraArea") {
+            CameraVolume cv;
+            cv.name = n.name;
+            cv.id = n.id;
+            cv.center = Vec3{ n.absolute.m[12], n.absolute.m[13], n.absolute.m[14] };
+            cv.half = Vec3{ std::fmax(std::fabs(n.scale.x) * 50.0f, 400.0f),
+                            std::fmax(std::fabs(n.scale.y) * 50.0f, 400.0f),
+                            std::fmax(std::fabs(n.scale.z) * 50.0f, 400.0f) };
+            cameraVolumes.push_back(cv);
+        }
+        else if (n.gameType == "CamCtrlPoint") {
+            camPointsByOwner[n.ownerCameraArea].push_back(
+                Vec3{ n.absolute.m[12], n.absolute.m[13], n.absolute.m[14] });
+        }
+        else if (n.gameType == "Effect" || n.gameType == "Hint")
+            markers.push_back({ n.gameType, Vec3{ n.absolute.m[12], n.absolute.m[13], n.absolute.m[14] } });
+        else if (n.gameType == "RestorePoint")
+            restorePoints.push_back(Vec3{ n.absolute.m[12], n.absolute.m[13], n.absolute.m[14] });
         else if (n.gameType == "CheckPoint" || n.gameType == "WayPoint" ||
                  n.gameType == "WebGrabPoint" || n.gameType == "Comic")
             markers.push_back({ n.gameType, Vec3{ n.absolute.m[12], n.absolute.m[13], n.absolute.m[14] } });
@@ -361,7 +402,40 @@ bool LevelRoom::loadFullLevel(const std::string& assetRoot, const std::string& l
         return a < b;
     });
     if (irrs.empty()) { err = "no .irr scenes in " + dir; return false; }
-    return load(assetRoot, levelDir, irrs, err);
+    bool ok = load(assetRoot, levelDir, irrs, err);
+    if (ok) resolveScripting();   // link cinematics and camera points once every room is in
+    return ok;
+}
+
+// After every room is parsed, link the scripting data: cinematics onto their
+// same-named triggers, camera control points onto their owning volume.
+void LevelRoom::resolveScripting() {
+    for (TriggerVolume& t : triggers) {
+        auto it = cinematicByTag.find(t.tag);
+        if (it != cinematicByTag.end()) t.cinematic = it->second;
+    }
+    for (CameraVolume& cv : cameraVolumes) {
+        auto it = camPointsByOwner.find(cv.id);
+        if (it == camPointsByOwner.end() || it->second.empty()) continue;
+        cv.controlPoints = it->second;
+        // The authored extent is not stored on the node, but the area's own
+        // control points bound it: take their box, padded, as the volume.
+        Vec3 lo = cv.controlPoints[0], hi = cv.controlPoints[0];
+        for (const Vec3& p : cv.controlPoints) {
+            lo.x = std::fmin(lo.x, p.x); lo.y = std::fmin(lo.y, p.y); lo.z = std::fmin(lo.z, p.z);
+            hi.x = std::fmax(hi.x, p.x); hi.y = std::fmax(hi.y, p.y); hi.z = std::fmax(hi.z, p.z);
+        }
+        const float pad = 600.0f;
+        cv.center = Vec3{ (lo.x + hi.x) * 0.5f, (lo.y + hi.y) * 0.5f, (lo.z + hi.z) * 0.5f };
+        cv.half   = Vec3{ (hi.x - lo.x) * 0.5f + pad, (hi.y - lo.y) * 0.5f + pad,
+                          (hi.z - lo.z) * 0.5f + pad };
+    }
+}
+
+int LevelRoom::cameraVolumeAt(const Vec3& p) const {
+    for (size_t i = 0; i < cameraVolumes.size(); ++i)
+        if (cameraVolumes[i].contains(p)) return (int)i;
+    return -1;
 }
 
 bool LevelRoom::canStandAt(float x, float y, float& outZ) const {

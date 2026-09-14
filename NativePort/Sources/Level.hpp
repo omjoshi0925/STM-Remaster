@@ -9,6 +9,8 @@
 #pragma once
 #include "BDAEModel.hpp"
 #include <map>
+#include <cmath>
+#include <map>
 #include <string>
 #include <vector>
 #include <cstdio>
@@ -24,6 +26,8 @@ struct IrrNode {
     std::string name;       // "Collisions_01"
     std::string gameType;   // "Geometry" | "Collisions" | "NavMesh" | "SpiderMan" | ...
     std::string meshFile;   // ".\meshes_bin\collision01.bdae" -> normalised below
+    std::string scriptFile; // Cinematic nodes: ".\\cinematics\\...cff"
+    int ownerCameraArea = -1;   // CamCtrlPoint -> owning CameraArea node id
     bool visible = true;
     Mat4 absolute;          // AbsoluteTransformation, already column-major
     Vec3 position;
@@ -86,6 +90,44 @@ struct LevelRoom {
     };
     std::vector<PropSpawn> props;
     std::vector<Vec3> bonuses;   // Bonus pickups carry no mesh, position only
+
+    // ---- level scripting (the original authored these; see docs/FORMAT_TRIGGERS.md)
+    // Trigger volumes are named boxes: "Trigger_3thugs", "Trigger_Lv1_Boss".
+    // The suffix after "Trigger_" is the tag the runtime reacts to, and a
+    // Cinematic node with the matching suffix names the .cff script.
+    struct TriggerVolume {
+        std::string name, tag, cinematic;
+        Vec3 center{}, half{};
+        bool contains(const Vec3& p) const {
+            return std::fabs(p.x - center.x) <= half.x &&
+                   std::fabs(p.y - center.y) <= half.y &&
+                   std::fabs(p.z - center.z) <= half.z;
+        }
+    };
+    std::vector<TriggerVolume> triggers;
+
+    // Authored camera volumes; CamCtrlPoint nodes link to one by owner id.
+    struct CameraVolume {
+        std::string name;
+        int id = -1;
+        Vec3 center{}, half{};
+        std::vector<Vec3> controlPoints;
+        bool contains(const Vec3& p) const {
+            return std::fabs(p.x - center.x) <= half.x &&
+                   std::fabs(p.y - center.y) <= half.y &&
+                   std::fabs(p.z - center.z) <= half.z;
+        }
+    };
+    std::vector<CameraVolume> cameraVolumes;
+
+    std::vector<Vec3> restorePoints;   // RestorePoint markers (death recovery)
+
+    // Index of the camera volume containing p, or -1.
+    int cameraVolumeAt(const Vec3& p) const;
+    void resolveScripting();   // called by loadFullLevel once all rooms are in
+
+    std::map<std::string, std::string> cinematicByTag;   // tag -> .cff path
+    std::map<int, std::vector<Vec3>> camPointsByOwner;   // CameraArea id -> points
     std::vector<std::pair<std::string, Vec3>> markers;   // checkpoints, waypoints, web points
 
     // assetRoot is the directory that contains "levelnew_01/...".
