@@ -16,9 +16,10 @@ Ordered by leverage; each item lists where its data/reference lives.
    `WebGrabPoint` nodes, Player state machine symbols.
 5. **Camera areas** - `CameraArea` nodes (authored camera volumes; the
    current orbit camera is not original).
-6. **Trigger runtime** - `Trigger`/`TriggerRestore`/`RestorePoint` nodes;
-   likely drives real level completion (current completion = full
-   checkpoint chain, documented assumption).
+6. **Cinematic playback** - the trigger runtime now reports which `.cff`
+   script each volume would start (Milestone 16); decoding the `.cff` format
+   and driving the camera from it is the next step. `CCinematicThread` in the
+   Android binary is the reference.
 7. **Menus** - `mainmenu.tga` + GS_* screen definitions + `interface_2.tga`.
 8. **Saves / ranks** - `LevelRank.bin`, `data.save` + `levelRanks.dat`
    specimens from the Android image.
