@@ -36,6 +36,11 @@ struct TriggerRuntime {
     // vocabulary.
     static bool isCompletionTag(const std::string& tag);
 
+    // True once a completion-tagged volume has fired. The caller still
+    // confirms the encounter is actually over (bossDown); the original ends
+    // Level 1 at Trigger_if_BOSS_DIE.
+    bool completionTriggered() const;
+    bool levelComplete(bool bossDown) const { return completionTriggered() && bossDown; }
 };
 
 } // namespace bdae

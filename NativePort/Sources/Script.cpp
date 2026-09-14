@@ -28,6 +28,13 @@ int TriggerRuntime::firedCount() const {
     return n;
 }
 
+bool TriggerRuntime::completionTriggered() const {
+    if (!level) return false;
+    for (size_t i = 0; i < level->triggers.size() && i < fired.size(); ++i)
+        if (fired[i] && isCompletionTag(level->triggers[i].tag)) return true;
+    return false;
+}
+
 bool TriggerRuntime::isCompletionTag(const std::string& tag) {
     return tag == "if_boss_die" || tag == "ifboss_die" || tag == "boss_die" ||
            tag == "lv_end" || tag == "end" || tag == "win";
