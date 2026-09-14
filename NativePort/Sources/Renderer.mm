@@ -400,6 +400,7 @@ fragment half4 frag(Out i                   [[stage_in]],
     std::vector<bool> _foeBarked;                // aggro voice line played once
     bdae::VoxTable _vox;
     bdae::TriggerRuntime _script;
+    simd_float2 _camBias;
     int _sfxVariant;
     int _bossIndex;                              // foe index driving the boss bar, or -1
     BOOL _winPlayed;
@@ -899,6 +900,22 @@ fragment half4 frag(Out i                   [[stage_in]],
     }
 
     [self drawProps:enc vp:vp eye:eye];
+    // authored camera areas gently pull the look-at toward their control
+    // points, which is how the original framed corridors and set pieces
+    if (_levelReady && _actor) {
+        int cv = _room->cameraVolumeAt(heroPos);
+        if (cv >= 0 && !_room->cameraVolumes[cv].controlPoints.empty()) {
+            const auto &pts = _room->cameraVolumes[cv].controlPoints;
+            bdae::Vec3 c{};
+            for (const bdae::Vec3 &p : pts) { c.x += p.x; c.y += p.y; c.z += p.z; }
+            c.x /= pts.size(); c.y /= pts.size(); c.z /= pts.size();
+            _camBias.x += ((c.x - heroPos.x) * 0.12f - _camBias.x) * fminf(1.0f, dt * 2.0f);
+            _camBias.y += ((c.y - heroPos.y) * 0.12f - _camBias.y) * fminf(1.0f, dt * 2.0f);
+        } else {
+            _camBias.x -= _camBias.x * fminf(1.0f, dt * 2.0f);
+            _camBias.y -= _camBias.y * fminf(1.0f, dt * 2.0f);
+        }
+    }
     _lastVP = vp; _lastW = (float)view.drawableSize.width; _lastH = (float)view.drawableSize.height;
     [self drawEnemies:enc vp:vp time:now];
 
