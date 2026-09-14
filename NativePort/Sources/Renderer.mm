@@ -14,6 +14,7 @@
 #include "Combat.hpp"
 #include "UIKitData.hpp"
 #include "GameFlow.hpp"
+#include "Script.hpp"
 #include <memory>
 #include <cmath>
 #include <cstring>
@@ -398,6 +399,7 @@ fragment half4 frag(Out i                   [[stage_in]],
     std::vector<std::string> _bossStat;          // "" unless the foe is a boss
     std::vector<bool> _foeBarked;                // aggro voice line played once
     bdae::VoxTable _vox;
+    bdae::TriggerRuntime _script;
     int _sfxVariant;
     int _bossIndex;                              // foe index driving the boss bar, or -1
     BOOL _winPlayed;
@@ -717,6 +719,14 @@ fragment half4 frag(Out i                   [[stage_in]],
             _heroHP = fmaxf(0.0f, _heroHP - f.stats.damage);
             [_audio playEvent:"SFX_HURT_1"];
         }
+    if (playing) {
+        // the original level script: named volumes, most naming a .cff cinematic
+        for (const bdae::ScriptEvent &se : _script.update(heroPos)) {
+            NSLog(@"[TotalMayhem] trigger '%s'%s%s", se.tag.c_str(),
+                  se.cinematic.empty() ? "" : " -> ", se.cinematic.c_str());
+            if (se.tag == "sense" || se.tag == "3thugs") [_audio playEvent:"SFX_SPIDER_SENSE_IN"];
+        }
+    }
     if (playing) _webEnergy = fminf(100.0f, _webEnergy + dt * 8.0f);
     // the level music follows the fight: calm bed until several enemies are
     // engaged, the mixed bed while they are
@@ -1639,6 +1649,7 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
     _heroHP = 100.0f;
     _webEnergy = 100.0f;
     _paused = NO;
+    if (_levelReady) _script.bind(*_room);
     if (_levelReady)
         _flow.beginLevel(*_room, idx % kLevelCount, (uint32_t)(CACurrentMediaTime() * 1000.0));
     NSLog(@"[TotalMayhem] level %d (%s): %zu enemies, %zu checkpoints", idx,
