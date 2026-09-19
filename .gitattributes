@@ -1,0 +1,9 @@
+* text=auto eol=lf
+*.sh text eol=lf
+*.py text eol=lf
+*.bdae binary
+*.tga binary
+*.pack binary
+*.cff binary
+*.png binary
+docs/*.png -diff
