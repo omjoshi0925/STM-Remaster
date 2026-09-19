@@ -1,0 +1,24 @@
+name: compile-check
+on: [push, pull_request]
+jobs:
+  syntax:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Engine C++ compiles (no assets needed)
+        run: |
+          for f in NativePort/Sources/*.cpp; do
+            clang++ -std=c++17 -fsyntax-only -I NativePort/Sources "$f"
+          done
+      - name: Objective-C++ renderer compiles against the iOS SDK
+        run: |
+          SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+          for f in NativePort/Sources/*.mm; do
+            clang++ -std=c++17 -fobjc-arc -fsyntax-only -isysroot "$SDK" -target arm64-apple-ios16.0 -I NativePort/Sources "$f"
+          done
+      - name: Host suites compile
+        run: |
+          cd hosttests
+          for t in *.cpp; do
+            clang++ -std=c++17 -fsyntax-only -I ../NativePort/Sources "$t"
+          done
