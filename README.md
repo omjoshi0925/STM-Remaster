@@ -50,3 +50,10 @@ containers (`*.pack`, `*.ipa`, `*.apk`, media) are gitignored.
 Audio (VoxSoundManager), `.cff` in-engine cinematics, original boss phases &
 QTEs, wall traversal & web swing, camera areas, room streaming, menus beyond
 the flow screens, saves/ranks. See the CHANGELOG ledger for the live list.
+
+## Documentation map
+- FORMAT_BDAE324.md, docs/FORMAT_*.md: the reverse-engineered formats
+- docs/ARCHITECTURE.md, docs/GLOSSARY.md: how the code is organised and the vocabulary
+- docs/ASSET_EXTRACTION.md, docs/DEVICE_TEST_CHECKLIST.md: getting it running and checking it
+- docs/KNOWN_ISSUES.md, docs/ROADMAP.md, CHANGELOG.md: what is broken, what is next, what happened
+- CONTRIBUTING.md, docs/LEGAL.md: rules
