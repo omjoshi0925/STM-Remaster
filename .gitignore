@@ -14,3 +14,12 @@ Sources.backup-*
 _superseded/
 .DS_Store
 __pycache__/
+
+# build products and editor state
+build-ios/
+build-*/
+*.xcuserstate
+xcuserdata/
+.DS_Store
+__pycache__/
+*.pyc
