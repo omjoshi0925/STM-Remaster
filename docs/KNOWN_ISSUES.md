@@ -6,6 +6,7 @@ Open
 - Trigger and camera-area extents are not stored on the nodes; volumes use conservative boxes and control-point bounds.
 - Comic pages for levels after the first use estimated start pages.
 - Audio event choices per moment are ours; the slot linkage in BehaviorSoundMapList.bin and MC_SOUND.bin is undecoded.
+- Roughly 448 of the 592 xlsStrings keys have empty English values; the level names and game name are present, so the pairing is right and the empties are unused or other-language keys.
 
 Fixed
 - Red circles wallpapering the scene: wrong atlas rectangles, replaced with measured ones.
