@@ -32,5 +32,5 @@ echo "== milestone 10 ==";   /tmp/stm_m10 "$ASSETS"
 echo "== milestone 12 ==";   /tmp/stm_m12 "$ASSETS"
 echo "== milestone 14 audio =="; /tmp/stm_m14 "$ASSETS"
 echo "== level scripting ==";  /tmp/stm_script "$ASSETS"
-$CXX -std=c++17 -O2 -I "$SRC" -o /tmp/stm_strings "$SRC/BDAEModel.cpp" "$SRC/Level.cpp" "$SRC/Character.cpp" "$SRC/Combat.cpp" "$SRC/GameFlow.cpp" strings_test.cpp
-echo "== strings ==";        /tmp/stm_strings "$ASSETS"
+$CXX -std=c++17 -O2 -I "$SRC" -o /tmp/stm_cine "$SRC/BDAEModel.cpp" "$SRC/Level.cpp" "$SRC/Cinematic.cpp" "$SRC/Audio.cpp" cinematic_test.cpp
+echo "== cinematics ==";     /tmp/stm_cine "$ASSETS"
