@@ -881,6 +881,17 @@ fragment half4 frag(Out i                   [[stage_in]],
         p.x - sinf(_camYaw) * _camDist * cosf(_camPitch),
         p.y - cosf(_camYaw) * _camDist * cosf(_camPitch),
         p.z + 95.0f + sinf(_camPitch) * _camDist};
+    if (_cineActive) {
+        // a ChangeCamera in the script's camera thread takes over: look at its
+        // target from `dir` at `Distance` (dir points from the camera toward the target)
+        bdae::CineCamera cc;
+        if (_cine.cameraAt((uint32_t)(now * 1000.0) - _cineStartMs, cc)) {
+            target = (simd_float3){cc.target.x, cc.target.y, cc.target.z};
+            eye = (simd_float3){cc.target.x - cc.dir.x * cc.distance,
+                                cc.target.y - cc.dir.y * cc.distance,
+                                cc.target.z - cc.dir.z * cc.distance};
+        }
+    }
     simd_float4x4 vp = simd_mul(MPerspective(58.0f * (float)M_PI / 180.0f, aspect, 10.0f, 120000.0f),
                                 MLookAt(eye, target, (simd_float3){0, 0, 1}));
 
