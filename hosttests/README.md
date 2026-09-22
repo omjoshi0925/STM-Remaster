@@ -32,3 +32,6 @@ Asset-free unit suites (`hosttests/run_unit_tests.sh`, also run by CI):
 | config_parser_unit | odd-length strings do not drop stat records |
 | gameflow_unit | checkpoints, comic nodes, death, completion |
 | wav_unit | PCM16 WAV passthrough, duration |
+
+| cinematic_test | every .cff parses, sample values, sounds exist, trigger links |
+| cinematic_unit | parser on a synthetic script |
