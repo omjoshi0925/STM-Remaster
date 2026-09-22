@@ -1,6 +1,7 @@
 // Asset audit: every reference the runtime will make must resolve on disk
 // before a build is worth installing. Run against an extracted Assets tree.
 #include "Level.hpp"
+#include "Cinematic.hpp"
 #include <cstdio>
 #include <dirent.h>
 #include <map>
@@ -112,6 +113,13 @@ int main(int argc, char** argv) {
                         L1.triggers.size(), L1.cameraVolumes.size(), L1.restorePoints.size());
             ck(!L1.triggers.empty() && !L1.cameraVolumes.empty(), "level scripting parses");
             ck(miss == 0, "every cinematic the triggers name is present", firstMiss);
+            int bad = 0; std::string firstBad;
+            for (auto& t : L1.triggers) {
+                if (t.cinematic.empty()) continue;
+                Cinematic c; std::string ce;
+                if (!c.load(root + "/levelnew_01/" + t.cinematic, ce)) { ++bad; if (firstBad.empty()) firstBad = t.cinematic; }
+            }
+            ck(bad == 0, "every trigger-linked cinematic parses", firstBad);
         }
     }
 
