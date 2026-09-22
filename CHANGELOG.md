@@ -543,3 +543,32 @@ parser alignment regression, game flow, WAV passthrough) run locally via
 `make unit` and on every push in CI. Tools: run_one_test.sh,
 bundle_release.sh, compare_packs.py. Docs: skinning/animation, debugging,
 performance, the Android image, FAQ, milestone history.
+
+## Milestone 17 — cinematics decoded and played (2026-09-22)
+
+### IMPLEMENTED
+The .cff cinematic scripts are UTF-16 XML: threads (object, basic, camera,
+player) of timestamped commands with typed attributes. Cinematic.hpp/cpp
+parses them and answers playback queries: player pose interpolated from
+MoveObject keyframes (quaternion to yaw), the SetAnim clip in effect,
+ChangeCamera target/dir/distance, SoundControl events in a window, AI
+disabled per object thread. When a fired trigger names a script the renderer
+enters CINEMATIC: Spider-Man follows the player thread, the script's sounds
+fire, ChangeCamera takes the camera, letterbox bars and SKIP show, enemies
+freeze, and play resumes at the end or on tap.
+
+### VERIFIED LOCALLY
+All 78 Level 1 and 67 Level 2 scripts parse (2644 commands, 43 kinds); every
+sound a script names exists in VoxSounds (58 + 41 distinct); the documented
+sample decodes to its values; all 35 trigger-linked scripts parse; a
+synthetic script exercises interpolation, hold past the last key, sound
+windows, camera timing and AI windows.
+
+### REQUIRES DEVICE VALIDATION
+ChangeCamera direction sign, keyframe pacing, sound timing, resume feel.
+
+### KNOWN LIMITATIONS
+SetAnim clips are reported but not yet played (the hero holds idle);
+PlayDAEAnim camera animations, object-thread motion, SetVisible, QTE
+branching and PlayEffect are parsed but not honoured.
+
