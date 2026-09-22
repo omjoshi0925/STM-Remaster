@@ -143,6 +143,15 @@ bool Cinematic::playerPoseAt(uint32_t t, Vec3& pos, float& yaw) const {
     return true;
 }
 
+std::string Cinematic::playerAnimAt(uint32_t t) const {
+    const CineThread* th = thread(3);
+    std::string clip;
+    if (!th) return clip;
+    for (const CineCommand& c : th->commands)
+        if (c.name == "SetAnim" && c.stampMs <= t) clip = c.str("$Anim");
+    return clip;
+}
+
 
 
 } // namespace bdae

@@ -58,6 +58,8 @@ struct Cinematic {
 
     // Player thread: pose from MoveObject keyframes (linear between keys).
     bool playerPoseAt(uint32_t t, Vec3& pos, float& yaw) const;
+    // Player thread: the SetAnim clip in effect at t ("" if none yet).
+    std::string playerAnimAt(uint32_t t) const;
 
     static float yawFromQuat(float x, float y, float z, float w);
 };
