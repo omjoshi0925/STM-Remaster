@@ -166,5 +166,14 @@ bool Cinematic::cameraAt(uint32_t t, CineCamera& out) const {
     return found;
 }
 
+std::vector<std::string> Cinematic::soundsBetween(uint32_t t0, uint32_t t1) const {
+    std::vector<std::string> out;
+    for (const CineThread& th : threads)
+        for (const CineCommand& c : th.commands)
+            if (c.name == "SoundControl" && c.stampMs > t0 && c.stampMs <= t1 &&
+                (c.flag("Play2D") || c.flag("Play3D")) && !c.flag("Stop"))
+                out.push_back(c.str("$VoxSounds"));
+    return out;
+}
 
 } // namespace bdae
