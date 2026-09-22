@@ -64,6 +64,8 @@ struct Cinematic {
     bool cameraAt(uint32_t t, CineCamera& out) const;
     // Every SoundControl with Play2D/Play3D in (t0, t1], as Vox event names.
     std::vector<std::string> soundsBetween(uint32_t t0, uint32_t t1) const;
+    // Object threads whose AI is disabled at t (by thread name).
+    std::vector<std::string> aiDisabledAt(uint32_t t) const;
 
     static float yawFromQuat(float x, float y, float z, float w);
 };

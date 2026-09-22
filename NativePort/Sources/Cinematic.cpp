@@ -176,4 +176,19 @@ std::vector<std::string> Cinematic::soundsBetween(uint32_t t0, uint32_t t1) cons
     return out;
 }
 
+std::vector<std::string> Cinematic::aiDisabledAt(uint32_t t) const {
+    std::vector<std::string> out;
+    for (const CineThread& th : threads) {
+        if (th.type != 0) continue;
+        bool disabled = false;
+        for (const CineCommand& c : th.commands) {
+            if (c.stampMs > t) break;
+            if (c.name == "DisableAI") disabled = true;
+            else if (c.name == "EnableAI") disabled = false;
+        }
+        if (disabled) out.push_back(th.name);
+    }
+    return out;
+}
+
 } // namespace bdae
