@@ -16,10 +16,10 @@ Ordered by leverage; each item lists where its data/reference lives.
    `WebGrabPoint` nodes, Player state machine symbols.
 5. **Camera areas** - `CameraArea` nodes (authored camera volumes; the
    current orbit camera is not original).
-6. **Cinematic playback** - the trigger runtime now reports which `.cff`
-   script each volume would start (Milestone 16); decoding the `.cff` format
-   and driving the camera from it is the next step. `CCinematicThread` in the
-   Android binary is the reference.
+6. **Cinematic fidelity** - the .cff format is decoded and scripts play
+   (Milestone 17: player keyframes, sounds, ChangeCamera). Still to honour:
+   PlayDAEAnim camera animations (camera_lv1_* BDAEs), object-thread motion
+   and SetVisible, QTE branching (StartQTE success/fail ids), PlayEffect.
 7. **Menus** - `mainmenu.tga` + GS_* screen definitions + `interface_2.tga`.
 8. **Saves / ranks** - `LevelRank.bin`, `data.save` + `levelRanks.dat`
    specimens from the Android image.
