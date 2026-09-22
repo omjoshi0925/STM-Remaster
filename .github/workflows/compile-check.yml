@@ -22,3 +22,5 @@ jobs:
           for t in *.cpp; do
             clang++ -std=c++17 -fsyntax-only -I ../NativePort/Sources "$t"
           done
+      - name: Asset-free unit suites
+        run: hosttests/run_unit_tests.sh
