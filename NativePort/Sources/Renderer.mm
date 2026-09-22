@@ -842,11 +842,12 @@ fragment half4 frag(Out i                   [[stage_in]],
         NSString *lvName = [NSString stringWithUTF8String:
             _strings.get("STR_LEVELNEW_" + std::to_string(_flow.levelIndex + 1) + "_NAME",
                          "LEVEL " + std::to_string(_flow.levelIndex + 1)).c_str()];
-        _skipLabel.hidden = _fontAtlas || !(_flow.phase == bdae::GameFlow::COMIC || _flow.phase == bdae::GameFlow::VIDEO);
+        _skipLabel.hidden = _fontAtlas || !(_flow.phase == bdae::GameFlow::COMIC || _flow.phase == bdae::GameFlow::VIDEO || _flow.phase == bdae::GameFlow::CINEMATIC);
         _flowLabel.hidden = (_fontAtlas != nil);
         switch (_flow.phase) {
             case bdae::GameFlow::VIDEO:
             case bdae::GameFlow::COMIC:
+            case bdae::GameFlow::CINEMATIC:
                 _flowLabel.text = @""; break;
             case bdae::GameFlow::TITLE:
                 _flowLabel.text = [NSString stringWithFormat:@"%@\n\n%@\n\nTap to start", gn, lvName]; break;
@@ -1057,7 +1058,12 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
     };
 
     // ---- flow overlays (video/title/death/complete) and the comic page
-    if (_flow.phase != bdae::GameFlow::PLAYING) {
+    if (_flow.phase == bdae::GameFlow::CINEMATIC) {
+        // letterbox bars instead of a dim: the scene is the point
+        useTex(_white);
+        quad(0, 0, W, H * 0.11f, kFull, 0, 0, 0, 255);
+        quad(0, H * 0.89f, W, H * 0.11f, kFull, 0, 0, 0, 255);
+    } else if (_flow.phase != bdae::GameFlow::PLAYING) {
         useTex(_white);
         quad(0, 0, W, H, kFull, 6, 6, 10, _flow.phase == bdae::GameFlow::COMIC ? 255 : 225);
         if (_flow.phase == bdae::GameFlow::COMIC) {
@@ -1077,6 +1083,7 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
             switch (_flow.phase) {
                 case bdae::GameFlow::VIDEO:
                 case bdae::GameFlow::COMIC:
+                case bdae::GameFlow::CINEMATIC:
                     drawText("SKIP", W - 30 * sc, 24 * sc, 44 * sc, 2, 255); break;
                 case bdae::GameFlow::TITLE: {
                     float y = H * 0.36f;
