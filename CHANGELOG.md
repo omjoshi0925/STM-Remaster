@@ -536,3 +536,10 @@ use a conservative box and camera areas use their control-point bounds. The
 .cff cinematic format is still undecoded - firing a trigger reports the
 script path rather than playing it. Tags are recognised but only the sense
 and ambush cues act; completion still uses the checkpoint chain.
+
+### Milestone 16.1 — asset-free unit suites (2026-09-21)
+Five unit suites that need no game data (math, trigger runtime, config
+parser alignment regression, game flow, WAV passthrough) run locally via
+`make unit` and on every push in CI. Tools: run_one_test.sh,
+bundle_release.sh, compare_packs.py. Docs: skinning/animation, debugging,
+performance, the Android image, FAQ, milestone history.
