@@ -152,6 +152,19 @@ std::string Cinematic::playerAnimAt(uint32_t t) const {
     return clip;
 }
 
+bool Cinematic::cameraAt(uint32_t t, CineCamera& out) const {
+    const CineThread* th = thread(2);
+    if (!th) return false;
+    bool found = false;
+    for (const CineCommand& c : th->commands) {
+        if (c.name != "ChangeCamera" || c.stampMs > t) continue;
+        c.vec3("target", out.target);
+        c.vec3("dir", out.dir);
+        out.distance = c.num("Distance", 800.0f);
+        found = true;
+    }
+    return found;
+}
 
 
 } // namespace bdae

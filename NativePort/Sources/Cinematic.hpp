@@ -60,6 +60,8 @@ struct Cinematic {
     bool playerPoseAt(uint32_t t, Vec3& pos, float& yaw) const;
     // Player thread: the SetAnim clip in effect at t ("" if none yet).
     std::string playerAnimAt(uint32_t t) const;
+    // Camera thread: the ChangeCamera in effect at t.
+    bool cameraAt(uint32_t t, CineCamera& out) const;
 
     static float yawFromQuat(float x, float y, float z, float w);
 };
