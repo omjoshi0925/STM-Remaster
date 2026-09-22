@@ -57,3 +57,9 @@ the flow screens, saves/ranks. See the CHANGELOG ledger for the live list.
 - docs/ASSET_EXTRACTION.md, docs/DEVICE_TEST_CHECKLIST.md: getting it running and checking it
 - docs/KNOWN_ISSUES.md, docs/ROADMAP.md, CHANGELOG.md: what is broken, what is next, what happened
 - CONTRIBUTING.md, docs/LEGAL.md: rules
+
+## Quick start
+    make verify ASSETS=~/path/to/Assets   # asset tree sanity
+    make unit                              # asset-free suites
+    make test ASSETS=~/path/to/Assets     # every suite against the real data
+    make regen && make build               # Xcode project and device build
