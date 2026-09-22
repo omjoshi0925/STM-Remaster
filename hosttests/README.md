@@ -22,3 +22,13 @@ Run against an extracted Assets tree, no device needed:
 | format_regression | locks documented byte-level facts |
 
 A suite prints PASS/FAIL per check and ends with PASSED or FAILED.
+
+Asset-free unit suites (`hosttests/run_unit_tests.sh`, also run by CI):
+
+| suite | verifies |
+|---|---|
+| math_unit | matrix identity, translation, composition, rotation |
+| trigger_unit | volume containment, fire-once, completion rule |
+| config_parser_unit | odd-length strings do not drop stat records |
+| gameflow_unit | checkpoints, comic nodes, death, completion |
+| wav_unit | PCM16 WAV passthrough, duration |
