@@ -17,3 +17,5 @@ mismatch; everything dark = vertex colour modulate missing; red circles =
 wrong atlas rectangles; no HUD = a texture format the loader rejected; a
 flood of undeclared-identifier errors = one missing include broke the ivar
 block.
+
+Cinematics: `cinematic '<tag>': N threads, S s` when a script starts and `cinematic '<tag>' finished` when it ends; a load failure prints the script path and reason.
