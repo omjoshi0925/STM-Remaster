@@ -2,10 +2,13 @@ ASSETS ?= $(HOME)/Downloads/SpiderMan_Native_ARM64_Port_Workbench/Assets
 WB     ?= $(HOME)/Downloads/SpiderMan_Native_ARM64_Port_Workbench
 TEAM   ?= BHV8AWKA75
 
-.PHONY: check test verify regen build sync
+.PHONY: check test unit verify regen build sync
 
 check:        ## compile check like CI
 	Tools/check_staged.sh
+
+unit:         ## asset-free suites
+	hosttests/run_unit_tests.sh
 
 test:         ## host suites against $(ASSETS)
 	hosttests/run_host_tests.sh $(ASSETS)
