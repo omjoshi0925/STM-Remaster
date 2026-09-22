@@ -7,6 +7,7 @@ Open
 - Comic pages for levels after the first use estimated start pages.
 - Audio event choices per moment are ours; the slot linkage in BehaviorSoundMapList.bin and MC_SOUND.bin is undecoded.
 - Roughly 448 of the 592 xlsStrings keys have empty English values; the level names and game name are present, so the pairing is right and the empties are unused or other-language keys.
+- Cinematic playback assumes ChangeCamera dir points from camera to target; if scenes look reversed, negate it. Player keyframes are applied with spawnAt each frame, so the SetAnim clip is reported but not yet played.
 
 Fixed
 - Red circles wallpapering the scene: wrong atlas rectangles, replaced with measured ones.
