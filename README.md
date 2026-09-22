@@ -21,6 +21,8 @@ containers (`*.pack`, `*.ipa`, `*.apk`, media) are gitignored.
   Level 1 <-> Level 2; mid-level comic beats from the original Comic nodes
 - Combat: config-driven enemy stats/AI (melee + ranged), 3-hit combo,
   knockback, web attack with web-power meter, bosses spawn with real assets
+- Cinematics: the .cff scripts decoded and played (player keyframes,
+  sounds, camera changes) when their trigger fires
 - Authentic HUD from `interface.tga` (every sprite rectangle verified
   visually - `docs/`) and all UI text in the original outlined font
 - 11 host-side test suites validate parsers and gameplay logic against the
