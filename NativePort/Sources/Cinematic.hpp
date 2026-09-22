@@ -56,7 +56,10 @@ struct Cinematic {
     const CineThread* thread(int type) const;
     const CineThread* threadNamed(const std::string& name) const;
 
+    // Player thread: pose from MoveObject keyframes (linear between keys).
+    bool playerPoseAt(uint32_t t, Vec3& pos, float& yaw) const;
 
+    static float yawFromQuat(float x, float y, float z, float w);
 };
 
 } // namespace bdae
