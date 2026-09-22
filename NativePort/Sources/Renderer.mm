@@ -15,6 +15,7 @@
 #include "UIKitData.hpp"
 #include "GameFlow.hpp"
 #include "Script.hpp"
+#include "Cinematic.hpp"
 #include <memory>
 #include <cmath>
 #include <cstring>
@@ -400,6 +401,10 @@ fragment half4 frag(Out i                   [[stage_in]],
     std::vector<bool> _foeBarked;                // aggro voice line played once
     bdae::VoxTable _vox;
     bdae::TriggerRuntime _script;
+    bdae::Cinematic _cine;
+    BOOL _cineActive;
+    uint32_t _cineStartMs, _cineLastMs;
+    std::string _cineName;
     simd_float2 _camBias;
     int _sfxVariant;
     int _bossIndex;                              // foe index driving the boss bar, or -1
@@ -726,6 +731,30 @@ fragment half4 frag(Out i                   [[stage_in]],
             NSLog(@"[TotalMayhem] trigger '%s'%s%s", se.tag.c_str(),
                   se.cinematic.empty() ? "" : " -> ", se.cinematic.c_str());
             if (se.tag == "sense" || se.tag == "3thugs") [_audio playEvent:"SFX_SPIDER_SENSE_IN"];
+            if (!se.cinematic.empty() && !_cineActive) {
+                std::string ce;
+                std::string path = _assetRootStr + "/" + kLevelDirs[_flow.levelIndex % kLevelCount] + "/" + se.cinematic;
+                if (_cine.load(path, ce) && _cine.durationMs > 0) {
+                    _cineActive = YES; _cineStartMs = nowMs; _cineLastMs = 0; _cineName = se.tag;
+                    _flow.phase = bdae::GameFlow::CINEMATIC;
+                    NSLog(@"[TotalMayhem] cinematic '%s': %zu threads, %.1f s", se.tag.c_str(),
+                          _cine.threads.size(), _cine.durationMs / 1000.0);
+                } else if (!ce.empty()) NSLog(@"[TotalMayhem] cinematic %s: %s", se.cinematic.c_str(), ce.c_str());
+            }
+        }
+    }
+    if (_cineActive) {
+        // run the script: the player thread poses Spider-Man, sound commands fire
+        uint32_t t = nowMs - _cineStartMs;
+        for (const std::string &s : _cine.soundsBetween(_cineLastMs, t))
+            if (!s.empty()) [_audio playEvent:s.c_str()];
+        _cineLastMs = t;
+        Vec3 cp; float cyaw;
+        if (_actor && _cine.playerPoseAt(t, cp, cyaw)) _actor->spawnAt(cp, cyaw);
+        if (t > _cine.durationMs + 400) {
+            _cineActive = NO;
+            _flow.startPlay(nowMs);
+            NSLog(@"[TotalMayhem] cinematic '%s' finished", _cineName.c_str());
         }
     }
     if (playing) _webEnergy = fminf(100.0f, _webEnergy + dt * 8.0f);
@@ -1610,6 +1639,7 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
     _levelCounts.clear();
     _npcModel.clear(); _npcIndexCount.clear(); _npcIdle.clear();
     _npcAnchor.clear(); _npcs.clear(); _foes.clear();
+    _cineActive = NO;
     _foeSounds.clear(); _foeBarked.clear(); _bossStat.clear(); _bossIndex = -1;
     _winPlayed = NO; _musicAction = NO; _musicSwitchMs = 0;
     _npcBones = nil;
@@ -1679,6 +1709,11 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
         uint32_t nowMs = (uint32_t)(CACurrentMediaTime() * 1000.0);
         if (_flow.phase == bdae::GameFlow::VIDEO) {
             [self playVideoAtIndex:_videoIndex + 1];   // tap = skip this clip
+            return;
+        }
+        if (_flow.phase == bdae::GameFlow::CINEMATIC) {   // tap = skip the cinematic
+            _cineActive = NO;
+            _flow.startPlay(nowMs);
             return;
         }
         if (_flow.phase == bdae::GameFlow::COMIC) {
