@@ -14,3 +14,4 @@
 - M14: audio: Vox event table, ADPCM decoder, AudioManager
 - M15: per-archetype audio, boss music and bar, combo word art
 - M16: the level script: triggers, cinematics linked, camera areas
+- M17: cinematics decoded and played: .cff parser, player keyframes, sounds, ChangeCamera
