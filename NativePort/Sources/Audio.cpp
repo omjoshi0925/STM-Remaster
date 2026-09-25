@@ -198,6 +198,15 @@ EnemySounds VoxTable::soundsFor(const std::string& statName) const {
     return s;
 }
 
+EnemySounds VoxTable::soundsFor(const std::string& statName, const BehaviorSoundMap& map) const {
+    EnemySounds s = soundsFor(statName);
+    const char* hurtSlots[3] = {"hurt1", "hurt2", "hurt3"};
+    for (int i = 0; i < 3; ++i) { std::string e = map.event(hurtSlots[i], statName, *this); if (!e.empty()) s.hurt[i] = e; }
+    std::string d = map.event("dies", statName, *this); if (!d.empty()) s.dies = d;
+    std::string v = map.event("Voice_1", statName, *this); if (!v.empty()) s.voice = v;
+    return s;
+}
+
 std::string VoxTable::bossMusicFor(const std::string& statName) const {
     std::string m = "M_BOSS_" + statName;
     return find(m) ? m : std::string();

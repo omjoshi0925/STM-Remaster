@@ -39,6 +39,9 @@ struct VoxTable {
     }
     // statName is the EnemysAttributeConfigs row ("THUG_KNIFE", "RHINO").
     EnemySounds soundsFor(const std::string& statName) const;
+    // Same, but the original BehaviorSoundMapList decides first; the name
+    // convention only fills cells the table leaves empty.
+    EnemySounds soundsFor(const std::string& statName, const struct BehaviorSoundMap& map) const;
     // "M_BOSS_SANDMAN" / "M_BOSS_RHINO" ... or "" when the row is not a boss.
     std::string bossMusicFor(const std::string& statName) const;
     // Event name for a VoxSounds row index, "" if out of range.
