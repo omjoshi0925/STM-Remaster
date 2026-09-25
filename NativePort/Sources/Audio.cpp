@@ -156,6 +156,34 @@ std::string BehaviorSoundMap::event(const std::string& slot, const std::string& 
     return std::string();
 }
 
+bool HeroSoundMap::load(const std::string& configsDir, std::string& err) {
+    std::vector<uint8_t> b;
+    if (!readAll(configsDir + "/MC_SOUND.bin", b)) { err = "cannot read MC_SOUND.bin"; return false; }
+    std::vector<std::pair<std::string, std::vector<uint32_t>>> raw;
+    walkRows(b, raw);
+    variants.clear();
+    for (auto& r : raw) {
+        // as a u16 stream: [flags x4] [count] [count indices] [trailing fields]
+        std::vector<uint16_t> u;
+        for (uint32_t v : r.second) { u.push_back((uint16_t)(v & 0xffff)); u.push_back((uint16_t)(v >> 16)); }
+        std::vector<uint32_t> idx;
+        if (u.size() >= 6) {
+            size_t count = u[4];
+            for (size_t k = 0; k < count && 5 + k < u.size(); ++k)
+                if (u[5 + k] != 0xffff) idx.push_back(u[5 + k]);
+        }
+        variants[r.first] = idx;
+    }
+    if (variants.empty()) { err = "no hero slots parsed"; return false; }
+    return true;
+}
+
+std::string HeroSoundMap::event(const std::string& slot, const VoxTable& vox, int variant) const {
+    auto it = variants.find(slot);
+    if (it == variants.end() || it->second.empty()) return std::string();
+    return vox.rowName(it->second[(size_t)variant % it->second.size()]);
+}
+
 EnemySounds VoxTable::soundsFor(const std::string& statName) const {
     EnemySounds s;
     auto pick = [&](const std::string& name) { return find(name) ? name : std::string(); };

@@ -59,6 +59,14 @@ struct BehaviorSoundMap {
     std::string event(const std::string& slot, const std::string& statName, const VoxTable& vox) const;
 };
 
+// MC_SOUND.bin: the hero's sound slots (k_mc_sfx_swoosh_punch, k_mc_sfx_land,
+// k_mc_sfx_hurt ...), each a list of VoxSounds row indices (variants).
+struct HeroSoundMap {
+    std::map<std::string, std::vector<uint32_t>> variants;
+    bool load(const std::string& configsDir, std::string& err);
+    // One event name for a slot (variant i modulo count), "" if unknown.
+    std::string event(const std::string& slot, const VoxTable& vox, int variant = 0) const;
+};
 
 // Decoded audio: 16-bit signed PCM, interleaved.
 struct WavClip {
