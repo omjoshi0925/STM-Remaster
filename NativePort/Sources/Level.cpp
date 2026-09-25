@@ -304,7 +304,7 @@ bool LevelRoom::load(const std::string& assetRoot, const std::string& levelDir,
                     mf = mf.substr(mf.find('/') + 1);
                 if (!mf.empty()) mf = levelDir + "/" + mf;   // level-local props (billboards etc.)
             }
-            if (!mf.empty()) props.push_back({ n.gameType, mf, n.name, n.absolute });
+            if (!mf.empty()) props.push_back({ n.gameType, mf, n.name, n.absolute, n.id });
         }
         else if (n.gameType == "Bonus")
             bonuses.push_back(Vec3{ n.absolute.m[12], n.absolute.m[13], n.absolute.m[14] });
@@ -322,7 +322,7 @@ bool LevelRoom::load(const std::string& assetRoot, const std::string& levelDir,
         {
             float yw = std::atan2(2.0f * (n.rotation.w * n.rotation.z + n.rotation.x * n.rotation.y),
                                   1.0f - 2.0f * (n.rotation.y * n.rotation.y + n.rotation.z * n.rotation.z));
-            enemies.push_back({ n.gameType, Vec3{ n.absolute.m[12], n.absolute.m[13], n.absolute.m[14] }, yw });
+            enemies.push_back({ n.gameType, Vec3{ n.absolute.m[12], n.absolute.m[13], n.absolute.m[14] }, yw, n.id });
         }
         else if (n.gameType == "Trigger" || n.gameType == "TriggerRestore") {
             TriggerVolume t;
@@ -344,6 +344,7 @@ bool LevelRoom::load(const std::string& assetRoot, const std::string& levelDir,
             for (char& c : low) c = (char)std::tolower((unsigned char)c);
             size_t us = low.find('_');
             cinematicByTag[(us == std::string::npos) ? low : low.substr(us + 1)] = n.scriptFile;
+            cinematicById[n.id] = n.scriptFile;
         }
         else if (n.gameType == "CameraArea") {
             CameraVolume cv;

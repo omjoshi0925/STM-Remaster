@@ -78,7 +78,7 @@ struct LevelRoom {
     bool  hasSpawn = false;
     Vec3  spawn;
     float spawnYaw = 0;
-    struct EnemySpawn { std::string type; Vec3 pos; float yaw = 0; };
+    struct EnemySpawn { std::string type; Vec3 pos; float yaw = 0; int nodeId = -1; };
     std::vector<EnemySpawn> enemies;
 
     // World props placed by the original scenes (lampposts, cars, hostages...).
@@ -87,6 +87,7 @@ struct LevelRoom {
         std::string meshFile;  // normalized relative path (entities/meshes_bin/x.bdae)
         std::string name;
         Mat4 transform;        // absolute world transform from the scene
+        int nodeId = -1;       // scene node id, referenced by cinematic object threads
     };
     std::vector<PropSpawn> props;
     std::vector<Vec3> bonuses;   // Bonus pickups carry no mesh, position only
@@ -127,6 +128,7 @@ struct LevelRoom {
     void resolveScripting();   // called by loadFullLevel once all rooms are in
 
     std::map<std::string, std::string> cinematicByTag;   // tag -> .cff path
+    std::map<int, std::string> cinematicById;            // Cinematic node id -> .cff path (QTE branches)
     std::map<int, std::vector<Vec3>> camPointsByOwner;   // CameraArea id -> points
     std::vector<std::pair<std::string, Vec3>> markers;   // checkpoints, waypoints, web points
 
