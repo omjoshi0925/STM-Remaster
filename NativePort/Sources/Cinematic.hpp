@@ -68,6 +68,12 @@ struct Cinematic {
     std::vector<std::string> aiDisabledAt(uint32_t t) const;
 
     static float yawFromQuat(float x, float y, float z, float w);
+
+    // Any thread by scene object id: pose from its MoveObject keyframes.
+    bool objectPoseAt(int objectId, uint32_t t, Vec3& pos, float& yaw) const;
+    // Object threads whose SetVisible is false at t (by object id).
+    std::vector<int> hiddenObjectsAt(uint32_t t) const;
+
 };
 
 } // namespace bdae

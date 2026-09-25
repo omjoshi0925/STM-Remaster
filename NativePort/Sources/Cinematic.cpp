@@ -114,6 +114,47 @@ const CineThread* Cinematic::threadNamed(const std::string& name) const {
     return nullptr;
 }
 
+static bool poseFromThread(const CineThread& th, uint32_t t, Vec3& pos, float& yaw) {
+    const CineCommand* before = nullptr; const CineCommand* after = nullptr;
+    for (const CineCommand& c : th.commands) {
+        if (c.name != "MoveObject") continue;
+        if (c.stampMs <= t) before = &c; else { after = &c; break; }
+    }
+    if (!before && !after) return false;
+    const CineCommand* a = before ? before : after;
+    Vec3 p0, p1;
+    if (!a->vec3("pos", p0)) return false;
+    const CineAttr* r = a->attr("rot");
+    yaw = r ? Cinematic::yawFromQuat(r->f[0], r->f[1], r->f[2], r->f[3]) : 0.0f;
+    pos = p0;
+    if (before && after && after->vec3("pos", p1) && after->stampMs > before->stampMs) {
+        float u = (float)(t - before->stampMs) / (float)(after->stampMs - before->stampMs);
+        if (u < 0) u = 0;
+        if (u > 1) u = 1;
+        pos = Vec3{ p0.x + (p1.x - p0.x) * u, p0.y + (p1.y - p0.y) * u, p0.z + (p1.z - p0.z) * u };
+    }
+    return true;
+}
+
+bool Cinematic::objectPoseAt(int objectId, uint32_t t, Vec3& pos, float& yaw) const {
+    for (const CineThread& th : threads)
+        if (th.objectId == objectId && th.type != 2) return poseFromThread(th, t, pos, yaw);
+    return false;
+}
+
+std::vector<int> Cinematic::hiddenObjectsAt(uint32_t t) const {
+    std::vector<int> out;
+    for (const CineThread& th : threads) {
+        bool hidden = false;
+        for (const CineCommand& c : th.commands) {
+            if (c.stampMs > t) break;
+            if (c.name == "SetVisible") hidden = !c.flag("Visible");
+        }
+        if (hidden) out.push_back(th.objectId);
+    }
+    return out;
+}
+
 float Cinematic::yawFromQuat(float x, float y, float z, float w) {
     return std::atan2(2.0f * (w * z + x * y), 1.0f - 2.0f * (y * y + z * z));
 }
