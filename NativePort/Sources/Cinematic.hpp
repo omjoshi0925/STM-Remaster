@@ -73,7 +73,12 @@ struct Cinematic {
     bool objectPoseAt(int objectId, uint32_t t, Vec3& pos, float& yaw) const;
     // Object threads whose SetVisible is false at t (by object id).
     std::vector<int> hiddenObjectsAt(uint32_t t) const;
-
+    // PlayDAEAnim commands: which BDAE animation a thread plays from when.
+    struct DaeAnim { int objectId; std::string file; int clip; uint32_t stampMs; };
+    std::vector<DaeAnim> daeAnims() const;
+    // StartQTE: the QTE id and the cinematic ids to branch to.
+    struct Qte { uint32_t stampMs; int id; int successCinematic; int failCinematic; };
+    std::vector<Qte> qtes() const;
 };
 
 } // namespace bdae

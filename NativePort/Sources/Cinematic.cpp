@@ -155,6 +155,28 @@ std::vector<int> Cinematic::hiddenObjectsAt(uint32_t t) const {
     return out;
 }
 
+std::vector<Cinematic::DaeAnim> Cinematic::daeAnims() const {
+    std::vector<DaeAnim> out;
+    for (const CineThread& th : threads)
+        for (const CineCommand& c : th.commands)
+            if (c.name == "PlayDAEAnim") {
+                std::string f = c.str("AnimFile");
+                for (char& ch : f) if (ch == '\\') ch = '/';
+                out.push_back({ th.objectId, f, (int)c.num("clipID", 0), c.stampMs });
+            }
+    return out;
+}
+
+std::vector<Cinematic::Qte> Cinematic::qtes() const {
+    std::vector<Qte> out;
+    for (const CineThread& th : threads)
+        for (const CineCommand& c : th.commands)
+            if (c.name == "StartQTE")
+                out.push_back({ c.stampMs, (int)c.num("QTEID", 0), (int)c.num("^ID^Cinematic^Success", -1),
+                                (int)c.num("^ID^Cinematic^Fail", -1) });
+    return out;
+}
+
 float Cinematic::yawFromQuat(float x, float y, float z, float w) {
     return std::atan2(2.0f * (w * z + x * y), 1.0f - 2.0f * (y * y + z * z));
 }
