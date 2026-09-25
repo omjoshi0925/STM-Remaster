@@ -34,3 +34,5 @@ echo "== milestone 14 audio =="; /tmp/stm_m14 "$ASSETS"
 echo "== level scripting ==";  /tmp/stm_script "$ASSETS"
 $CXX -std=c++17 -O2 -I "$SRC" -o /tmp/stm_cine "$SRC/BDAEModel.cpp" "$SRC/Level.cpp" "$SRC/Cinematic.cpp" "$SRC/Audio.cpp" cinematic_test.cpp
 echo "== cinematics ==";     /tmp/stm_cine "$ASSETS"
+$CXX -std=c++17 -O2 -I "$SRC" -o /tmp/stm_slots "$SRC/Audio.cpp" sound_slots_test.cpp
+echo "== sound slots ==";    /tmp/stm_slots "$ASSETS"
