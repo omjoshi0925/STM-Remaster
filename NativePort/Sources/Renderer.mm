@@ -411,6 +411,9 @@ fragment half4 frag(Out i                   [[stage_in]],
     BOOL _cineActive;
     uint32_t _cineStartMs, _cineLastMs;
     std::string _cineName;
+    const bdae::Clip *_cineClip;
+    std::string _cineClipName;
+    uint32_t _cineClipStartMs;
     simd_float2 _camBias;
     int _sfxVariant;
     int _bossIndex;                              // foe index driving the boss bar, or -1
@@ -750,6 +753,7 @@ fragment half4 frag(Out i                   [[stage_in]],
                 std::string path = _assetRootStr + "/" + kLevelDirs[_flow.levelIndex % kLevelCount] + "/" + se.cinematic;
                 if (_cine.load(path, ce) && _cine.durationMs > 0) {
                     _cineActive = YES; _cineStartMs = nowMs; _cineLastMs = 0; _cineName = se.tag;
+                    _cineClip = nullptr; _cineClipName.clear();
                     _flow.phase = bdae::GameFlow::CINEMATIC;
                     NSLog(@"[TotalMayhem] cinematic '%s': %zu threads, %.1f s", se.tag.c_str(),
                           _cine.threads.size(), _cine.durationMs / 1000.0);
@@ -765,6 +769,14 @@ fragment half4 frag(Out i                   [[stage_in]],
         _cineLastMs = t;
         _cineHidden.clear();
         for (int id : _cine.hiddenObjectsAt(t)) _cineHidden.insert(id);
+        // SetAnim: play the script's clip on the hero, switching when it changes
+        std::string an = _cine.playerAnimAt(t);
+        if (!an.empty() && an != _cineClipName && _hero) {
+            _cineClipName = an;
+            _cineClip = bdae::pickClip(*_hero, {an.c_str()});
+            _cineClipStartMs = nowMs;
+            if (!_cineClip) NSLog(@"[TotalMayhem] cinematic clip '%s' not in spiderman_anim", an.c_str());
+        }
         Vec3 cp; float cyaw;
         if (_actor && _cine.playerPoseAt(t, cp, cyaw)) _actor->spawnAt(cp, cyaw);
         // object threads: the script moves the enemies it names (by scene node id)
@@ -856,7 +868,10 @@ fragment half4 frag(Out i                   [[stage_in]],
     }
     if (_heroReady) {
         const Clip *oc; uint32_t otl;
-        if (_fists.poseInfo(nowMs, oc, otl)) _hero->poseAtTime(otl);   // punch overrides locomotion
+        if (_cineActive && _cineClip) {
+            uint32_t len = _cineClip->endMs > _cineClip->startMs ? _cineClip->endMs - _cineClip->startMs : 1;
+            _hero->poseAtTime(_cineClip->startMs + (nowMs - _cineClipStartMs) % len);
+        } else if (_fists.poseInfo(nowMs, oc, otl)) _hero->poseAtTime(otl);   // punch overrides locomotion
     }
     if (_frameIdx % 30 == 0 && _levelReady) {
         int alive = 0; for (auto &f : _foes) if (f.alive()) ++alive;
