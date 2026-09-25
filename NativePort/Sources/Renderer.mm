@@ -399,7 +399,11 @@ fragment half4 frag(Out i                   [[stage_in]],
     std::vector<bdae::EnemySounds> _foeSounds;   // parallel to _foes
     std::vector<std::string> _bossStat;          // "" unless the foe is a boss
     std::vector<bool> _foeBarked;                // aggro voice line played once
+    std::vector<std::string> _foeStat;           // stats row name per foe
     bdae::VoxTable _vox;
+    bdae::BehaviorSoundMap _behaviorMap;
+    bdae::HeroSoundMap _heroSounds;
+    BOOL _slotTablesOk;
     bdae::TriggerRuntime _script;
     bdae::Cinematic _cine;
     BOOL _cineActive;
@@ -547,6 +551,10 @@ fragment half4 frag(Out i                   [[stage_in]],
     {
         std::string ve;
         if (!_vox.load(assetRoot + "/configs", ve)) NSLog(@"[TotalMayhem] vox table: %s", ve.c_str());
+        std::string be, he;
+        _slotTablesOk = _behaviorMap.load(assetRoot + "/configs", _vox, be) && _heroSounds.load(assetRoot + "/configs", he);
+        NSLog(@"[TotalMayhem] sound slot tables: %s (%zu enemy slots, %zu hero slots)",
+              _slotTablesOk ? "original" : "name convention", _behaviorMap.slots.size(), _heroSounds.variants.size());
     }
     [self loadLevelIndex:0];
 
@@ -715,11 +723,13 @@ fragment half4 frag(Out i                   [[stage_in]],
         if (_bossIndex >= 0 && (size_t)_bossIndex == fi && !fe.alive()) _bossIndex = -1;
     }
     for (bdae::EnemyActor &f : _foes)
-        if (playing && f.stats.ranged && f.state == bdae::EnemyActor::ATTACK &&
-            f.stateStartMs == nowMs) {
-            // gun and molotov thugs have their own firing sounds
-            const char *shot = (f.stats.rangedRange > 2000) ? "SFX_RHINO_TRAMP" : "SFX_THUG_GUN_SHOOT";
-            [_audio playEvent:shot];
+        if (playing && f.state == bdae::EnemyActor::ATTACK && f.stateStartMs == nowMs) {
+            // the original table says what each archetype's attack sounds like
+            size_t fi2 = (size_t)(&f - &_foes[0]);
+            std::string st = fi2 < _foeStat.size() ? _foeStat[fi2] : std::string();
+            std::string ev = _slotTablesOk ? _behaviorMap.event(f.stats.ranged ? "gun_shoot" : "attack_swoosh", st, _vox) : std::string();
+            if (ev.empty() && f.stats.ranged) ev = "SFX_THUG_GUN_SHOOT";
+            if (!ev.empty()) [_audio playEvent:ev.c_str()];
         }
         if (playing && f.update(nowMs, dtMs, heroPos) && _heroHP > 0) {
             _heroHP = fmaxf(0.0f, _heroHP - f.stats.damage);
@@ -1590,7 +1600,8 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
         st.ranged = (std::strncmp(arch->prefix, "Range", 5) == 0) ||
                     (std::strcmp(arch->prefix, "MeleeThug_gun") == 0);
         st.damage = (std::strncmp(arch->prefix, "Boss_", 5) == 0) ? 12.0f : 5.0f;
-        _foeSounds.push_back(_vox.soundsFor(statName));
+        _foeSounds.push_back(_slotTablesOk ? _vox.soundsFor(statName, _behaviorMap) : _vox.soundsFor(statName));
+        _foeStat.push_back(statName);
         _foeBarked.push_back(false);
         _bossStat.push_back(statName.rfind("SANDMAN", 0) == 0 || statName.rfind("RHINO", 0) == 0 ? statName : std::string());
         _foes.emplace_back();
@@ -1658,7 +1669,7 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
     _npcModel.clear(); _npcIndexCount.clear(); _npcIdle.clear();
     _npcAnchor.clear(); _npcs.clear(); _foes.clear();
     _cineActive = NO;
-    _foeSounds.clear(); _foeBarked.clear(); _bossStat.clear(); _bossIndex = -1;
+    _foeSounds.clear(); _foeBarked.clear(); _foeStat.clear(); _bossStat.clear(); _bossIndex = -1;
     _winPlayed = NO; _musicAction = NO; _musicSwitchMs = 0;
     _npcBones = nil;
     _room = std::make_unique<LevelRoom>();
