@@ -572,3 +572,26 @@ SetAnim clips are reported but not yet played (the hero holds idle);
 PlayDAEAnim camera animations, object-thread motion, SetVisible, QTE
 branching and PlayEffect are parsed but not honoured.
 
+## Milestone 18 — original sound moments, cinematic fidelity (2026-09-25)
+
+### IMPLEMENTED
+The audio slot linkage (roadmap item one) decoded: BehaviorSoundMapList.bin
+is a 63-slot by archetype matrix of VoxSounds row indices and MC_SOUND.bin
+lists the hero's 38 slots as variant lists of row indices. Enemy hurt,
+death, voice, attack swoosh and gun shots, and the hero's punch and kick
+swooshes, hurt and web throw, now come from the original tables. Cinematics
+gained fidelity: object threads move the enemies they name (scene node ids
+recorded on spawns), SetVisible hides props and enemies, SetAnim plays the
+named clip on Spider-Man; PlayDAEAnim and StartQTE are exposed with a
+cinematic id map for branches.
+
+### VERIFIED LOCALLY
+318 enemy cells and 70 hero variants all index VoxSounds rows; columns
+identify the thug archetypes; sample cells resolve to the original events.
+All 78 enemies carry node ids; 55 object threads are placed enemies; 5 of 6
+QTE branch pairs resolve; unit suites cover the new queries.
+
+### KNOWN LIMITATIONS
+Props and vehicle objects named by threads do not move; PlayDAEAnim camera
+animations and QTE branching are not played; no 3D panning.
+
