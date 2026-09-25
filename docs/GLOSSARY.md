@@ -17,3 +17,5 @@
 - lightmap: baked lighting texture sampled on the second UV set
 - archetype: enemy type keyed by scene GameType and stats row name
 - ledger: the five-section status block in CHANGELOG.md
+- slot table: BehaviorSoundMapList / MC_SOUND, mapping a sound moment to VoxSounds rows
+- object thread: a cinematic thread bound to a scene node id, moved by MoveObject
