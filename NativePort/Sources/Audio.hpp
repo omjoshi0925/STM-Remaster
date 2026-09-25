@@ -31,6 +31,7 @@ struct EnemySounds {
 
 struct VoxTable {
     std::map<std::string, VoxEvent> byName;
+    std::vector<std::string> order;      // event names in file order: the row index the slot tables use
     bool load(const std::string& configsDir, std::string& err);
     const VoxEvent* find(const std::string& event) const {
         auto it = byName.find(event);
@@ -40,7 +41,24 @@ struct VoxTable {
     EnemySounds soundsFor(const std::string& statName) const;
     // "M_BOSS_SANDMAN" / "M_BOSS_RHINO" ... or "" when the row is not a boss.
     std::string bossMusicFor(const std::string& statName) const;
+    // Event name for a VoxSounds row index, "" if out of range.
+    std::string rowName(uint32_t row) const { return row < order.size() ? order[row] : std::string(); }
 };
+
+// BehaviorSoundMapList.bin: the original per-state enemy sound table. Each
+// slot (Voice_1, hurt1, dies, attack_swoosh, gun_shoot ...) holds one
+// VoxSounds row index per archetype column, 0xffffffff for none. Column
+// order is inferred from the "dies" row (SFX_<ARCHETYPE>_DIES).
+struct BehaviorSoundMap {
+    std::vector<std::string> slots;                      // row names
+    std::vector<std::vector<uint32_t>> rows;             // per slot: column indices
+    std::vector<std::string> columnArchetype;            // e.g. THUG_KNIFE, THUG_BAT ...
+    bool load(const std::string& configsDir, const VoxTable& vox, std::string& err);
+    int columnFor(const std::string& statName) const;    // -1 if unknown
+    // Event name for (slot, archetype), "" when the cell is empty.
+    std::string event(const std::string& slot, const std::string& statName, const VoxTable& vox) const;
+};
+
 
 // Decoded audio: 16-bit signed PCM, interleaved.
 struct WavClip {

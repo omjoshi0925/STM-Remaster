@@ -76,6 +76,7 @@ bool VoxTable::load(const std::string& configsDir, std::string& err) {
                     ev.file = s;
                     if (off + 4 <= b.size()) ev.flags = rd32(&b[off]);
                     byName[pendingEvent] = ev;
+                    order.push_back(pendingEvent);
                     pendingEvent.clear();
                 }
             } else {
@@ -87,6 +88,72 @@ bool VoxTable::load(const std::string& configsDir, std::string& err) {
     }
     if (byName.empty()) { err = "no events parsed"; return false; }
     return true;
+}
+
+// Shared field-stream walker: yields (string, numbers-that-followed) rows.
+static void walkRows(const std::vector<uint8_t>& b,
+                     std::vector<std::pair<std::string, std::vector<uint32_t>>>& rows) {
+    auto stringAt = [&](size_t o, uint16_t& L) {
+        if (o + 2 > b.size()) return false;
+        L = rd16(&b[o]);
+        return L >= 2 && L <= 80 && o + 2 + L <= b.size() && printable(&b[o + 2], L);
+    };
+    size_t off = 4;
+    while (off + 1 < b.size()) {
+        uint16_t L = 0;
+        if (!stringAt(off, L) && stringAt(off + 2, L)) off += 2;
+        if (stringAt(off, L)) {
+            rows.push_back({ std::string((const char*)&b[off + 2], L), {} });
+            off += 2 + L;
+            continue;
+        }
+        if (off + 4 > b.size()) break;
+        if (!rows.empty()) rows.back().second.push_back(rd32(&b[off]));
+        off += 4;
+    }
+}
+
+bool BehaviorSoundMap::load(const std::string& configsDir, const VoxTable& vox, std::string& err) {
+    std::vector<uint8_t> b;
+    if (!readAll(configsDir + "/BehaviorSoundMapList.bin", b)) { err = "cannot read BehaviorSoundMapList.bin"; return false; }
+    std::vector<std::pair<std::string, std::vector<uint32_t>>> raw;
+    walkRows(b, raw);
+    slots.clear(); rows.clear(); columnArchetype.clear();
+    for (auto& r : raw) { slots.push_back(r.first); rows.push_back(r.second); }
+    if (slots.empty()) { err = "no slots parsed"; return false; }
+    // columns from the dies row: SFX_<ARCHETYPE>_DIES
+    for (size_t i = 0; i < slots.size(); ++i) {
+        if (slots[i] != "dies") continue;
+        for (uint32_t idx : rows[i]) {
+            std::string n = vox.rowName(idx);
+            std::string arch;
+            if (n.rfind("SFX_", 0) == 0 && n.size() > 9 && n.compare(n.size() - 5, 5, "_DIES") == 0)
+                arch = n.substr(4, n.size() - 9);
+            columnArchetype.push_back(arch);
+        }
+        break;
+    }
+    return true;
+}
+
+int BehaviorSoundMap::columnFor(const std::string& statName) const {
+    for (size_t c = 0; c < columnArchetype.size(); ++c)
+        if (!columnArchetype[c].empty() && columnArchetype[c] == statName) return (int)c;
+    // SLEDGER is the hammer thug's row name in the sound tables
+    if (statName == "THUG_HAMMER") return columnFor("SLEDGER");
+    return -1;
+}
+
+std::string BehaviorSoundMap::event(const std::string& slot, const std::string& statName,
+                                    const VoxTable& vox) const {
+    int c = columnFor(statName);
+    if (c < 0) return std::string();
+    for (size_t i = 0; i < slots.size(); ++i) {
+        if (slots[i] != slot) continue;
+        if ((size_t)c < rows[i].size() && rows[i][c] != 0xffffffffu) return vox.rowName(rows[i][c]);
+        return std::string();
+    }
+    return std::string();
 }
 
 EnemySounds VoxTable::soundsFor(const std::string& statName) const {
