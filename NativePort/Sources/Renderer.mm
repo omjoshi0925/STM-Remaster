@@ -400,6 +400,7 @@ fragment half4 frag(Out i                   [[stage_in]],
     std::vector<std::string> _bossStat;          // "" unless the foe is a boss
     std::vector<bool> _foeBarked;                // aggro voice line played once
     std::vector<std::string> _foeStat;           // stats row name per foe
+    std::vector<int> _foeNodeId;                 // scene node id per foe (cinematic object threads)
     bdae::VoxTable _vox;
     bdae::BehaviorSoundMap _behaviorMap;
     bdae::HeroSoundMap _heroSounds;
@@ -762,6 +763,13 @@ fragment half4 frag(Out i                   [[stage_in]],
         _cineLastMs = t;
         Vec3 cp; float cyaw;
         if (_actor && _cine.playerPoseAt(t, cp, cyaw)) _actor->spawnAt(cp, cyaw);
+        // object threads: the script moves the enemies it names (by scene node id)
+        for (size_t fi = 0; fi < _foes.size() && fi < _foeNodeId.size(); ++fi) {
+            Vec3 op; float oyaw;
+            if (_foeNodeId[fi] >= 0 && _cine.objectPoseAt(_foeNodeId[fi], t, op, oyaw)) {
+                _foes[fi].x = op.x; _foes[fi].y = op.y; _foes[fi].z = op.z; _foes[fi].yaw = oyaw;
+            }
+        }
         if (t > _cine.durationMs + 400) {
             _cineActive = NO;
             _flow.startPlay(nowMs);
@@ -1607,6 +1615,7 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
         st.damage = (std::strncmp(arch->prefix, "Boss_", 5) == 0) ? 12.0f : 5.0f;
         _foeSounds.push_back(_slotTablesOk ? _vox.soundsFor(statName, _behaviorMap) : _vox.soundsFor(statName));
         _foeStat.push_back(statName);
+        _foeNodeId.push_back(en.nodeId);
         _foeBarked.push_back(false);
         _bossStat.push_back(statName.rfind("SANDMAN", 0) == 0 || statName.rfind("RHINO", 0) == 0 ? statName : std::string());
         _foes.emplace_back();
@@ -1674,7 +1683,7 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
     _npcModel.clear(); _npcIndexCount.clear(); _npcIdle.clear();
     _npcAnchor.clear(); _npcs.clear(); _foes.clear();
     _cineActive = NO;
-    _foeSounds.clear(); _foeBarked.clear(); _foeStat.clear(); _bossStat.clear(); _bossIndex = -1;
+    _foeSounds.clear(); _foeBarked.clear(); _foeStat.clear(); _foeNodeId.clear(); _bossStat.clear(); _bossIndex = -1;
     _winPlayed = NO; _musicAction = NO; _musicSwitchMs = 0;
     _npcBones = nil;
     _room = std::make_unique<LevelRoom>();
