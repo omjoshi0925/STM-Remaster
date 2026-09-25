@@ -2,11 +2,10 @@
 
 Ordered by leverage; each item lists where its data/reference lives.
 
-1. **Audio slot linkage** - the clips play (Milestone 14/15), but which event
-   fires at which moment is still our choice. `BehaviorSoundMapList.bin` (63
-   enemy/boss slots) and `MC_SOUND.bin` (38 hero slots) name the original
-   vocabulary; their numeric linkage to VoxSounds rows is undecoded. The
-   `VoxSoundManager` symbols in the Android binary are the reference.
+1. **Audio moments** - the slot tables are decoded (Milestone 18) and the
+   runtime uses them; what remains is firing every slot at its original
+   moment (land, jump swoosh, wall climb, swing start and end) as those
+   mechanics arrive, and 3D panning.
 2. **In-engine cinematics** - `.cff` files per level, `camera_lv1_*` BDAEs,
    `CCinematicThread` (110 methods) as reference; `Cinematic` nodes (77 in
    L1) place them.
