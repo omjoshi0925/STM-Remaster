@@ -42,5 +42,10 @@ int main() {
     CineCamera cc;
     ck(!c.cameraAt(100, cc) && c.cameraAt(600, cc) && cc.distance == 640 && cc.target.z == 3, "camera in effect after its stamp");
     ck(c.aiDisabledAt(400).size() == 1 && c.aiDisabledAt(900).empty(), "AI disabled between DisableAI and EnableAI");
+    Vec3 op; float oyaw;
+    ck(c.objectPoseAt(1, 500, op, oyaw) && std::fabs(op.x - 50.0f) < 1e-3f && !c.objectPoseAt(99, 500, op, oyaw),
+       "objectPoseAt finds a thread by scene object id");
+    ck(c.daeAnims().empty() && c.qtes().empty() && c.hiddenObjectsAt(10).empty(),
+       "queries are empty when the script has no such commands");
     UNIT_END("CINEMATIC UNIT");
 }

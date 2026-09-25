@@ -83,6 +83,27 @@ int main(int argc, char** argv) {
         }
     ck(linked > 0 && parsed == linked, "every trigger-linked cinematic parses", std::to_string(parsed) + "/" + std::to_string(linked));
 
+    // object threads and QTE branches link back to the level
+    {
+        std::set<int> enemyIds; for (auto& en : L.enemies) enemyIds.insert(en.nodeId);
+        int objThreads = 0, enemyThreads = 0, dae = 0, qte = 0, qteResolved = 0;
+        DIR* d2 = opendir((root + "/levelnew_01/cinematics").c_str());
+        while (dirent* en = readdir(d2)) {
+            std::string n = en->d_name;
+            if (n.size() < 5 || n.compare(n.size() - 4, 4, ".cff") != 0) continue;
+            Cinematic x; if (!x.load(root + "/levelnew_01/cinematics/" + n, e)) continue;
+            for (auto& th : x.threads) if (th.type == 0) { ++objThreads; if (enemyIds.count(th.objectId)) ++enemyThreads; }
+            dae += (int)x.daeAnims().size();
+            for (auto& q : x.qtes()) { ++qte; if (L.cinematicById.count(q.successCinematic) && L.cinematicById.count(q.failCinematic)) ++qteResolved; }
+        }
+        closedir(d2);
+        std::printf("  object threads %d (placed enemies %d), PlayDAEAnim %d, QTEs %d (%d fully resolve)\n",
+                    objThreads, enemyThreads, dae, qte, qteResolved);
+        ck(enemyThreads >= 40, "object threads name placed enemies by scene node id");
+        ck(L.cinematicById.size() >= 70 && qteResolved >= qte - 1, "QTE branch ids resolve through the cinematic id map");
+        ck(dae > 0, "PlayDAEAnim camera animations are exposed");
+    }
+
     std::printf("\n%s (%d failures)\n", fails ? "CINEMATIC TEST FAILED" : "CINEMATIC TEST PASSED", fails);
     return fails ? 1 : 0;
 }
