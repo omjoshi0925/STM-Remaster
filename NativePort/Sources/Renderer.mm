@@ -733,7 +733,8 @@ fragment half4 frag(Out i                   [[stage_in]],
         }
         if (playing && f.update(nowMs, dtMs, heroPos) && _heroHP > 0) {
             _heroHP = fmaxf(0.0f, _heroHP - f.stats.damage);
-            [_audio playEvent:"SFX_HURT_1"];
+            std::string hu = _slotTablesOk ? _heroSounds.event("k_mc_sfx_hurt", _vox, _sfxVariant++) : "SFX_HURT_1";
+            [_audio playEvent:hu.c_str()];
         }
     if (playing) {
         // the original level script: named volumes, most naming a .cff cinematic
@@ -799,9 +800,13 @@ fragment half4 frag(Out i                   [[stage_in]],
     if (playing) {
         int hits = _fists.update(nowMs, heroPos, _actor ? _actor->yaw() : 0.0f, _foes);
         _score += hits * 10;
-        if (_fists.justStruck)
-            [_audio playEvent:(hits > 0 ? (_comboHits >= 2 ? "SFX_PUNCH_IMPACT_2" : "SFX_PUNCH_IMPACT_1")
-                                        : "SFX_PUNCH_SWOOSH_1")];
+        if (_fists.justStruck) {
+            if (hits > 0) [_audio playEvent:(_comboHits >= 2 ? "SFX_PUNCH_IMPACT_2" : "SFX_PUNCH_IMPACT_1")];
+            else {
+                std::string sw = _slotTablesOk ? _heroSounds.event(_fists.stage == 2 ? "k_mc_sfx_swoosh_kick" : "k_mc_sfx_swoosh_punch", _vox, _sfxVariant++) : "SFX_PUNCH_SWOOSH_1";
+                [_audio playEvent:sw.c_str()];
+            }
+        }
         if (hits > 0) {
             _popups.push_back({heroPos.x, heroPos.y, heroPos.z + 190.0f, hits * 10, nowMs});
             _comboHits = (nowMs - _comboLastMs < 1500) ? _comboHits + 1 : 1;
@@ -1804,7 +1809,10 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
                     _score += 15;
                     _popups.push_back({best->x, best->y, best->z + 190.0f, 15, nowMs});
                     _fists.tryPunch(nowMs);   // reuse the strike animation for now
-                    [_audio playEvent:"SFX_WEB_THROW_1"];
+                    {
+                        std::string wt = _slotTablesOk ? _heroSounds.event("k_mc_sfx_web_throw", _vox, _sfxVariant++) : "SFX_WEB_THROW_1";
+                        [_audio playEvent:wt.c_str()];
+                    }
                 }
             }
             return;
