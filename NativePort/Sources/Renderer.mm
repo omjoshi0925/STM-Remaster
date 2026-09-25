@@ -23,6 +23,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <set>
 #include <simd/simd.h>
 
 using namespace bdae;
@@ -438,7 +439,8 @@ fragment half4 frag(Out i                   [[stage_in]],
     std::vector<NSUInteger> _propCounts;
     std::vector<int> _propBatchArch;           // archetype index per GPU batch
     std::vector<int> _propAlphaTest;
-    struct PropInst { int arch; simd_float4x4 model; float x, y, z; bool alive; bool destructible; };
+    struct PropInst { int arch; simd_float4x4 model; float x, y, z; bool alive; bool destructible; int nodeId; };
+    std::set<int> _cineHidden;                   // object ids hidden by the running script
     std::vector<PropInst> _props;
     std::vector<bool> _bonusTaken;
     std::vector<std::pair<int, int>> _propRanges;
@@ -761,6 +763,8 @@ fragment half4 frag(Out i                   [[stage_in]],
         for (const std::string &s : _cine.soundsBetween(_cineLastMs, t))
             if (!s.empty()) [_audio playEvent:s.c_str()];
         _cineLastMs = t;
+        _cineHidden.clear();
+        for (int id : _cine.hiddenObjectsAt(t)) _cineHidden.insert(id);
         Vec3 cp; float cyaw;
         if (_actor && _cine.playerPoseAt(t, cp, cyaw)) _actor->spawnAt(cp, cyaw);
         // object threads: the script moves the enemies it names (by scene node id)
@@ -771,7 +775,7 @@ fragment half4 frag(Out i                   [[stage_in]],
             }
         }
         if (t > _cine.durationMs + 400) {
-            _cineActive = NO;
+            _cineActive = NO; _cineHidden.clear();
             _flow.startPlay(nowMs);
             NSLog(@"[TotalMayhem] cinematic '%s' finished", _cineName.c_str());
         }
@@ -1368,7 +1372,7 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
         }
         if (ai < 0) continue;
         PropInst pi;
-        pi.arch = ai; pi.model = ToSimd(pr.transform);
+        pi.arch = ai; pi.model = ToSimd(pr.transform); pi.nodeId = pr.nodeId;
         pi.x = pr.transform.m[12]; pi.y = pr.transform.m[13]; pi.z = pr.transform.m[14];
         pi.alive = true; pi.destructible = (pr.type == "DestroyableObject");
         _props.push_back(pi); ++placed;
@@ -1384,6 +1388,7 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
     Uniforms u; u.vp = vp; u.tint = (simd_float4){1, 1, 1, 1};
     for (const PropInst &p : _props) {
         if (!p.alive) continue;
+        if (_cineActive && _cineHidden.count(p.nodeId)) continue;
         float dx = p.x - eye.x, dy = p.y - eye.y;
         if (dx * dx + dy * dy > 9000.0f * 9000.0f) continue;   // distance cull
         u.model = p.model;
@@ -1654,6 +1659,7 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
         if (i < _foes.size()) {
             float sink = _foes[i].corpseSink(nowMs);
             if (sink >= 1.0f) continue;
+            if (_cineActive && i < _foeNodeId.size() && _cineHidden.count(_foeNodeId[i])) continue;
             ez -= sink * 240.0f;
         }
         Uniforms u;
