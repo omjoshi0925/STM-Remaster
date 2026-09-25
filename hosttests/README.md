@@ -35,3 +35,4 @@ Asset-free unit suites (`hosttests/run_unit_tests.sh`, also run by CI):
 
 | cinematic_test | every .cff parses, sample values, sounds exist, trigger links |
 | cinematic_unit | parser on a synthetic script |
+| sound_slots_test | BehaviorSoundMapList and MC_SOUND decode to VoxSounds rows |
