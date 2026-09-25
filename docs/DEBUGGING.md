@@ -19,3 +19,5 @@ flood of undeclared-identifier errors = one missing include broke the ivar
 block.
 
 Cinematics: `cinematic '<tag>': N threads, S s` when a script starts and `cinematic '<tag>' finished` when it ends; a load failure prints the script path and reason.
+
+Audio: `sound slot tables: original (63 enemy slots, 38 hero slots)` means the decoded tables drive event choice; `name convention` means a config failed to load.
