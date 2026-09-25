@@ -23,6 +23,8 @@ containers (`*.pack`, `*.ipa`, `*.apk`, media) are gitignored.
   knockback, web attack with web-power meter, bosses spawn with real assets
 - Cinematics: the .cff scripts decoded and played (player keyframes,
   sounds, camera changes) when their trigger fires
+- Audio driven by the original slot tables (enemy matrix and hero slots),
+  and cinematics that move the enemies they name
 - Authentic HUD from `interface.tga` (every sprite rectangle verified
   visually - `docs/`) and all UI text in the original outlined font
 - 11 host-side test suites validate parsers and gameplay logic against the
