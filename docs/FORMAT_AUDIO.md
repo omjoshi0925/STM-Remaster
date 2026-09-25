@@ -34,14 +34,20 @@ format 17 in a WAV container, so `Audio.cpp` decodes it directly:
 Decoded output is interleaved PCM16 (`WavClip`), which the platform layer
 converts to float buffers for AVAudioEngine.
 
-## Slot vocabularies (not yet linked)
-`BehaviorSoundMapList.bin` names the 63 enemy/boss behaviour sound slots the
-original AI triggers (`Voice_1..12`, `hurt1..3`, `dies`, `attack_swoosh`,
-`attack_strike`, `gun_shoot`, plus boss-specific slots such as
-`sand_hand_attack`, `rhino_fs_1`, `venom_scream`, `green_goblin_roar`).
-`MC_SOUND.bin` names the 38 hero slots (`k_mc_sfx_swoosh_punch`,
-`k_mc_sfx_land`, `k_mc_sfx_web_throw`, `k_mc_sfx_wall_climb`, ...).
-The numeric linkage from a slot to a VoxSounds event is **not decoded**; the
-runtime resolves per-archetype events by name convention instead
-(`VoxTable::soundsFor`). Decoding that linkage would replace our event
-choices with the original ones - a good next step.
+## Slot tables (decoded)
+`BehaviorSoundMapList.bin` is a matrix: each of the 63 slot rows (`Voice_1..12`,
+`hurt1..3`, `dies`, `attack_swoosh`, `attack_strike`, `gun_shoot`, boss slots)
+holds one VoxSounds **row index** per archetype column, `0xffffffff` for none.
+Column order is read off the `dies` row (`SFX_<ARCHETYPE>_DIES`): THUG_KNIFE,
+THUG_BAT, THUG_MOLOTOV, THUG_GUN, THUG_ROCKET, SLEDGER (the hammer thug), then
+zombie, charger and goblin columns. 318 filled cells, all valid.
+
+`MC_SOUND.bin` holds the 38 hero slots. Read each row's numbers as a u16
+stream: four flag halves, then a variant count, then that many VoxSounds row
+indices (`k_mc_sfx_swoosh_punch` -> rows 60, 61 = `SFX_PUNCH_SWOOSH_1/2`;
+`k_mc_sfx_hurt` -> three variants). 70 variants, all valid.
+
+The runtime (`BehaviorSoundMap`, `HeroSoundMap`) resolves enemy hurt, death,
+voice, attack swoosh and gun shots, and the hero's punch and kick swooshes,
+hurt and web throw, from these tables; the name convention only fills empty
+cells. `Tools/dump_sound_slots.py` prints both resolved.
