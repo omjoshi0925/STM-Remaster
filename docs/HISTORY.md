@@ -15,3 +15,4 @@
 - M15: per-archetype audio, boss music and bar, combo word art
 - M16: the level script: triggers, cinematics linked, camera areas
 - M17: cinematics decoded and played: .cff parser, player keyframes, sounds, ChangeCamera
+- M18: sound slot tables decoded; cinematics move enemies, hide objects, play hero clips
