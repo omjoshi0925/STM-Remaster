@@ -32,5 +32,8 @@ Runtime (`Cinematic.hpp`): parse to threads and commands; `playerPoseAt`
 interpolates MoveObject keyframes; `playerAnimAt` gives the SetAnim clip in
 effect; `cameraAt` gives the ChangeCamera in effect; `soundsBetween` yields
 Vox events in a window; `aiDisabledAt` lists object threads with AI off.
-Not yet honoured: PlayDAEAnim camera animations, object-thread motion,
-QTE branching, SetVisible, PlayEffect.
+objectPoseAt poses any thread by scene object id, hiddenObjectsAt
+reads SetVisible windows, daeAnims and qtes expose PlayDAEAnim and StartQTE.
+Honoured in play: player keyframes and SetAnim, object-thread motion for
+placed enemies, SetVisible, sounds, ChangeCamera. Not yet: PlayDAEAnim
+camera animations, QTE branching, PlayEffect.
