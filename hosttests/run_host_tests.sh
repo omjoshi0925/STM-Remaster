@@ -38,3 +38,5 @@ $CXX -std=c++17 -O2 -I "$SRC" -o /tmp/stm_slots "$SRC/Audio.cpp" sound_slots_tes
 echo "== sound slots ==";    /tmp/stm_slots "$ASSETS"
 $CXX -std=c++17 -O2 -I "$SRC" -o /tmp/stm_camtrack "$SRC/BDAEModel.cpp" "$SRC/Level.cpp" "$SRC/Cinematic.cpp" camera_track_test.cpp
 echo "== camera tracks ==";   /tmp/stm_camtrack "$ASSETS"
+$CXX -std=c++17 -O2 -I "$SRC" -o /tmp/stm_dae "$SRC/BDAEModel.cpp" "$SRC/Level.cpp" "$SRC/Cinematic.cpp" dae_anim_test.cpp
+echo "== dae animations ==";  /tmp/stm_dae "$ASSETS"
