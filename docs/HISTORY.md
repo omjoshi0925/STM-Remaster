@@ -17,3 +17,4 @@
 - M17: cinematics decoded and played: .cff parser, player keyframes, sounds, ChangeCamera
 - M18: sound slot tables decoded; cinematics move enemies, hide objects, play hero clips
 - M19: camera tracks, QTE branching, props in cinematics, hostages, voice variety, title and score music
+- M20: cinematic hero animation files played, dodge, i-frames, deaths on the score screen
