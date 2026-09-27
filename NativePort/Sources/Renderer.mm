@@ -781,6 +781,13 @@ fragment half4 frag(Out i                   [[stage_in]],
                     _cineClip = nullptr; _cineClipName.clear();
                     _cineCamActive = NO; _qteOpen = NO; _qteNextIndex = 0; _cineHeroActive = NO;
                     for (const bdae::Cinematic::DaeAnim &da : _cine.daeAnims()) {
+                        const bdae::CineThread *pt0 = _cine.thread(3);
+                        if (pt0 && da.objectId == pt0->objectId) continue;
+                        std::string lf = da.file; for (char &ch : lf) ch = (char)tolower(ch);
+                        if (lf.find("camera") == std::string::npos)
+                            NSLog(@"[TotalMayhem] cinematic: object %d wants animation %s (enemy DAE animations not played yet)", da.objectId, da.file.c_str());
+                    }
+                    for (const bdae::Cinematic::DaeAnim &da : _cine.daeAnims()) {
                         std::string f = da.file; for (char &ch : f) ch = (char)tolower(ch);
                         if (f.find("camera") == std::string::npos) continue;
                         while (f.rfind("./", 0) == 0 || f.rfind("../", 0) == 0) f = f.substr(f.find('/') + 1);
