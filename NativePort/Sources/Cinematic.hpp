@@ -79,6 +79,8 @@ struct Cinematic {
     // StartQTE: the QTE id and the cinematic ids to branch to.
     struct Qte { uint32_t stampMs; int id; int successCinematic; int failCinematic; };
     std::vector<Qte> qtes() const;
+    // The next StartQTE at or after t, if any.
+    bool nextQteAfter(uint32_t t, Qte& out) const;
 };
 
 } // namespace bdae

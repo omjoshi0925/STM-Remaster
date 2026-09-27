@@ -177,6 +177,13 @@ std::vector<Cinematic::Qte> Cinematic::qtes() const {
     return out;
 }
 
+bool Cinematic::nextQteAfter(uint32_t t, Qte& out) const {
+    bool found = false;
+    for (const Qte& q : qtes())
+        if (q.stampMs >= t && (!found || q.stampMs < out.stampMs)) { out = q; found = true; }
+    return found;
+}
+
 float Cinematic::yawFromQuat(float x, float y, float z, float w) {
     return std::atan2(2.0f * (w * z + x * y), 1.0f - 2.0f * (y * y + z * z));
 }
