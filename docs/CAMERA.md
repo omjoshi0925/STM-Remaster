@@ -9,3 +9,5 @@ Original data: CameraArea volumes each own CamCtrlPoint nodes (193 in Level
 1) through !^Owner^CameraArea. The authored extent is not stored, so the
 runtime bounds each area by its control points plus padding. Cinematic
 cameras live in .cff scripts and camera_lv1_* BDAEs, not yet decoded.
+
+Cinematics: a PlayDAEAnim camera file drives the view through CameraTrack (eye and target nodes on the script clock); ChangeCamera is the fallback.
