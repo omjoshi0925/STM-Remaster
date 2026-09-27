@@ -412,6 +412,9 @@ fragment half4 frag(Out i                   [[stage_in]],
     uint32_t _cineStartMs, _cineLastMs;
     std::string _cineName;
     const bdae::Clip *_cineClip;
+    bdae::CameraTrack _cineCam;
+    BOOL _cineCamActive;
+    uint32_t _cineCamStartMs;
     std::string _cineClipName;
     uint32_t _cineClipStartMs;
     simd_float2 _camBias;
@@ -754,6 +757,18 @@ fragment half4 frag(Out i                   [[stage_in]],
                 if (_cine.load(path, ce) && _cine.durationMs > 0) {
                     _cineActive = YES; _cineStartMs = nowMs; _cineLastMs = 0; _cineName = se.tag;
                     _cineClip = nullptr; _cineClipName.clear();
+                    _cineCamActive = NO;
+                    for (const bdae::Cinematic::DaeAnim &da : _cine.daeAnims()) {
+                        std::string f = da.file; for (char &ch : f) ch = (char)tolower(ch);
+                        if (f.find("camera") == std::string::npos) continue;
+                        while (f.rfind("./", 0) == 0 || f.rfind("../", 0) == 0) f = f.substr(f.find('/') + 1);
+                        std::string ce2;
+                        if (_cineCam.load(bdae::resolveCaseInsensitive(_assetRootStr + "/" + kLevelDirs[_flow.levelIndex % kLevelCount] + "/" + f), ce2)) {
+                            _cineCamActive = YES; _cineCamStartMs = da.stampMs;
+                            NSLog(@"[TotalMayhem] cinematic camera track %s (%.1f s)", f.c_str(), _cineCam.durationMs / 1000.0);
+                        }
+                        break;
+                    }
                     _flow.phase = bdae::GameFlow::CINEMATIC;
                     NSLog(@"[TotalMayhem] cinematic '%s': %zu threads, %.1f s", se.tag.c_str(),
                           _cine.threads.size(), _cine.durationMs / 1000.0);
@@ -933,10 +948,17 @@ fragment half4 frag(Out i                   [[stage_in]],
         p.y - cosf(_camYaw) * _camDist * cosf(_camPitch),
         p.z + 95.0f + sinf(_camPitch) * _camDist};
     if (_cineActive) {
-        // a ChangeCamera in the script's camera thread takes over: look at its
+        uint32_t ct = (uint32_t)(now * 1000.0) - _cineStartMs;
+        Vec3 ce3, ctg;
+        if (_cineCamActive && ct >= _cineCamStartMs && _cineCam.sample(ct - _cineCamStartMs, ce3, ctg)) {
+            // an authored camera animation (PlayDAEAnim on a camera file) wins outright
+            eye = (simd_float3){ce3.x, ce3.y, ce3.z};
+            target = (simd_float3){ctg.x, ctg.y, ctg.z};
+        }
+        // otherwise a ChangeCamera in the script's camera thread takes over: look at its
         // target from `dir` at `Distance` (dir points from the camera toward the target)
         bdae::CineCamera cc;
-        if (_cine.cameraAt((uint32_t)(now * 1000.0) - _cineStartMs, cc)) {
+        if (!_cineCamActive && _cine.cameraAt(ct, cc)) {
             target = (simd_float3){cc.target.x, cc.target.y, cc.target.z};
             eye = (simd_float3){cc.target.x - cc.dir.x * cc.distance,
                                 cc.target.y - cc.dir.y * cc.distance,
