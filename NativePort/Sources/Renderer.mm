@@ -1249,8 +1249,8 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
                     char line[64];
                     snprintf(line, sizeof line, "SCORE %d", _score);
                     drawText(line, W * 0.5f, H * 0.48f, 52 * sc, 1, 255);
-                    snprintf(line, sizeof line, "CHECKPOINTS %d/%d", _flow.visitedCount(),
-                             (int)_flow.checkpointsAll.size());
+                    snprintf(line, sizeof line, "CHECKPOINTS %d/%d   DEATHS %d", _flow.visitedCount(),
+                             (int)_flow.checkpointsAll.size(), _flow.deaths);
                     drawText(line, W * 0.5f, H * 0.58f, 34 * sc, 1, 230);
                     drawText("TAP TO CONTINUE", W * 0.5f, H * 0.74f, 40 * sc, 1, (uint8_t)(255 * pulse));
                     break;
