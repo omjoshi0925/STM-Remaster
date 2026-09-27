@@ -450,7 +450,7 @@ fragment half4 frag(Out i                   [[stage_in]],
     std::vector<NSUInteger> _propCounts;
     std::vector<int> _propBatchArch;           // archetype index per GPU batch
     std::vector<int> _propAlphaTest;
-    struct PropInst { int arch; simd_float4x4 model; float x, y, z; bool alive; bool destructible; int nodeId; };
+    struct PropInst { int arch; simd_float4x4 model; float x, y, z; bool alive; bool destructible; int nodeId; bool hostage; };
     std::set<int> _cineHidden;                   // object ids hidden by the running script
     std::vector<PropInst> _props;
     std::vector<bool> _bonusTaken;
@@ -885,6 +885,16 @@ fragment half4 frag(Out i                   [[stage_in]],
                 if (d < 240.0f && (d < 1.0f || (dx * fx + dy * fy) / d > 0.2f)) {
                     p.alive = false; _score += 50; _popups.push_back({p.x, p.y, p.z + 120.0f, 50, nowMs});
                 }
+            }
+        }
+        // hostages: reaching one rescues them (+100), like the original's civilians
+        for (PropInst &hp : _props) {
+            if (!hp.alive || !hp.hostage) continue;
+            float dx = hp.x - heroPos.x, dy = hp.y - heroPos.y;
+            if (dx * dx + dy * dy < 160.0f * 160.0f && fabsf(hp.z - heroPos.z) < 300.0f) {
+                hp.alive = false; _score += 100;
+                _popups.push_back({hp.x, hp.y, hp.z + 200.0f, 100, nowMs});
+                [_audio playEvent:"SFX_ORBS_COLLECT"];
             }
         }
         for (size_t i = 0; i < _bonusTaken.size(); ++i) {
@@ -1472,6 +1482,7 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
         pi.arch = ai; pi.model = ToSimd(pr.transform); pi.nodeId = pr.nodeId;
         pi.x = pr.transform.m[12]; pi.y = pr.transform.m[13]; pi.z = pr.transform.m[14];
         pi.alive = true; pi.destructible = (pr.type == "DestroyableObject");
+        pi.hostage = (pr.type == "Hostage");
         _props.push_back(pi); ++placed;
     }
     _propRanges = archRange;
