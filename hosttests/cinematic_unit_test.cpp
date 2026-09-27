@@ -47,5 +47,7 @@ int main() {
        "objectPoseAt finds a thread by scene object id");
     ck(c.daeAnims().empty() && c.qtes().empty() && c.hiddenObjectsAt(10).empty(),
        "queries are empty when the script has no such commands");
+    Cinematic::Qte q;
+    ck(!c.nextQteAfter(0, q), "no QTE reported when the script has none");
     UNIT_END("CINEMATIC UNIT");
 }
