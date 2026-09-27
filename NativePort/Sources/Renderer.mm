@@ -1278,7 +1278,8 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
         bool punching = _fists.punching(nowMs);
         const bdae::SpriteModule &fist = punching ? kFistHot : kFist;
         quad(bx1 - 32 * sc, by1 - 34 * sc, 64 * sc, 68 * sc, fist, 255, 255, 255, 255);
-        quad(bx2 - 26 * sc, by1 - 32 * sc, 52 * sc, 64 * sc, kDodge, 255, 255, 255, 255);
+        bool dodgingNow = nowMs < _dodgeUntilMs;
+        quad(bx2 - 26 * sc, by1 - 32 * sc, 52 * sc, 64 * sc, kDodge, 255, dodgingNow ? 120 : 255, dodgingNow ? 90 : 255, 255);
         quad(bx3 - 32 * sc, by3 - 34 * sc, 64 * sc, 68 * sc, kWeb, 255, 255, 255, 255);
         // collectible tokens at the original Bonus positions
         for (size_t i = 0; i < _bonusTaken.size(); ++i) {
