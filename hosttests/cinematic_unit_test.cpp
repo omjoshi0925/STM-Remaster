@@ -49,5 +49,7 @@ int main() {
        "queries are empty when the script has no such commands");
     Cinematic::Qte q;
     ck(!c.nextQteAfter(0, q), "no QTE reported when the script has none");
+    Cinematic::DaeAnim da;
+    ck(!c.daeAnimAt(1, 5000, da), "no DAE animation reported when the thread has none");
     UNIT_END("CINEMATIC UNIT");
 }
