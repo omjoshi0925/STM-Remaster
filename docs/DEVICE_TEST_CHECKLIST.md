@@ -28,3 +28,8 @@ Death and completion
 - [ ] Reaching every checkpoint shows score and checkpoints, tap loads Level 2
 
 Report: screenshot of chapter card, gameplay, and the Xcode console filtered on TotalMayhem.
+
+Cinematics
+- [ ] Trigger_Lv1_Start plays a letterboxed script with SKIP
+- [ ] A TAP! prompt during a QTE; tapping and lapsing lead to different scripts
+- [ ] Walking into a hostage awards +100
