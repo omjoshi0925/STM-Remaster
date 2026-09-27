@@ -415,6 +415,10 @@ fragment half4 frag(Out i                   [[stage_in]],
     bdae::CameraTrack _cineCam;
     BOOL _cineCamActive;
     uint32_t _cineCamStartMs;
+    BOOL _qteOpen;                 // a StartQTE window is live
+    uint32_t _qteOpenedMs;
+    bdae::Cinematic::Qte _qte;
+    int _qteNextIndex;
     std::string _cineClipName;
     uint32_t _cineClipStartMs;
     simd_float2 _camBias;
@@ -759,7 +763,7 @@ fragment half4 frag(Out i                   [[stage_in]],
                 if (_cine.load(path, ce) && _cine.durationMs > 0) {
                     _cineActive = YES; _cineStartMs = nowMs; _cineLastMs = 0; _cineName = se.tag;
                     _cineClip = nullptr; _cineClipName.clear();
-                    _cineCamActive = NO;
+                    _cineCamActive = NO; _qteOpen = NO; _qteNextIndex = 0;
                     for (const bdae::Cinematic::DaeAnim &da : _cine.daeAnims()) {
                         std::string f = da.file; for (char &ch : f) ch = (char)tolower(ch);
                         if (f.find("camera") == std::string::npos) continue;
@@ -786,6 +790,14 @@ fragment half4 frag(Out i                   [[stage_in]],
         _cineLastMs = t;
         _cineHidden.clear();
         for (int id : _cine.hiddenObjectsAt(t)) _cineHidden.insert(id);
+        // QTE: when a StartQTE stamp passes, open a 1.2 s tap window
+        if (!_qteOpen) {
+            std::vector<bdae::Cinematic::Qte> qs = _cine.qtes();
+            if (_qteNextIndex < (int)qs.size() && t >= qs[_qteNextIndex].stampMs) {
+                _qte = qs[_qteNextIndex++]; _qteOpen = YES; _qteOpenedMs = nowMs;
+                [_audio playEvent:"SFX_SPIDER_SENSE_IN"];
+            }
+        }
         // SetAnim: play the script's clip on the hero, switching when it changes
         std::string an = _cine.playerAnimAt(t);
         if (!an.empty() && an != _cineClipName && _hero) {
@@ -1231,6 +1243,11 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
             float bw = 520 * sc, bx = (W - bw) * 0.5f, by = 128 * sc;
             quad(bx, by, bw, 28 * sc, kBossFrame, 255, 255, 255, 245);
             quad(bx + 6 * sc, by + 5 * sc, (bw - 12 * sc) * frac, 18 * sc, kBossFill, 255, 255, 255, 255);
+        }
+        // QTE prompt: TAP! pulsing in the outlined font while the window is open
+        if (_qteOpen) {
+            float q = 1.0f + 0.15f * sinf((float)CACurrentMediaTime() * 12.0f);
+            drawText("TAP!", W * 0.5f, H * 0.44f, 96 * sc * q, 1, 255);
         }
         // spider-sense: the ticked ring, red, pulsing over enemies that have noticed you
         float pulse = 0.5f + 0.5f * sinf((float)CACurrentMediaTime() * 6.0f);
