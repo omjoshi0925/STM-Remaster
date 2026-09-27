@@ -1333,7 +1333,11 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
 
 - (void)playVideoAtIndex:(NSUInteger)i {
     [self stopVideo];
-    if (i >= _bootVideos.count) { _flow.showTitle((uint32_t)(CACurrentMediaTime() * 1000.0)); return; }
+    if (i >= _bootVideos.count) {
+        _flow.showTitle((uint32_t)(CACurrentMediaTime() * 1000.0));
+        [_audio playMusic:"M_TITLE" looping:YES];
+        return;
+    }
     _videoIndex = i;
     AVPlayerItem *item = [AVPlayerItem playerItemWithURL:[NSURL fileURLWithPath:_bootVideos[i]]];
     _video = [AVPlayer playerWithPlayerItem:item];
