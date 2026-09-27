@@ -849,7 +849,7 @@ fragment half4 frag(Out i                   [[stage_in]],
             }
         }
         if (t > _cine.durationMs + 400) {
-            _cineActive = NO; _cineHidden.clear();
+            _cineActive = NO; _cineHidden.clear(); _cineHeroActive = NO; _cineHeroFile.clear();
             _flow.startPlay(nowMs);
             NSLog(@"[TotalMayhem] cinematic '%s' finished", _cineName.c_str());
         }
@@ -944,7 +944,12 @@ fragment half4 frag(Out i                   [[stage_in]],
     }
     if (_heroReady) {
         const Clip *oc; uint32_t otl;
-        if (_cineActive && _cineClip) {
+        if (_cineActive && _cineHeroActive && _cineHero) {
+            const Clip &c0 = _cineHero->clips[0];
+            uint32_t len = c0.endMs > c0.startMs ? c0.endMs - c0.startMs : 1;
+            uint32_t local = nowMs >= _cineHeroStartMs ? nowMs - _cineHeroStartMs : 0;
+            _cineHero->poseAtTime(c0.startMs + (local < len ? local : len - 1));   // play once, hold the last frame
+        } else if (_cineActive && _cineClip) {
             uint32_t len = _cineClip->endMs > _cineClip->startMs ? _cineClip->endMs - _cineClip->startMs : 1;
             _hero->poseAtTime(_cineClip->startMs + (nowMs - _cineClipStartMs) % len);
         } else if (_fists.poseInfo(nowMs, oc, otl)) _hero->poseAtTime(otl);   // punch overrides locomotion
@@ -1086,7 +1091,8 @@ fragment half4 frag(Out i                   [[stage_in]],
     [self drawEnemies:enc vp:vp time:now];
 
     if (_heroReady && _heroIndexCount) {
-        const std::vector<Mat4> &sk = _hero->skinningMatrices();
+        const std::vector<Mat4> &sk = (_cineActive && _cineHeroActive && _cineHero)
+                                      ? _cineHero->skinningMatrices() : _hero->skinningMatrices();
         NSUInteger boneOff = (_frameIdx % kFramesInFlight) * kBoneSlot;
         simd_float4x4 *dst = (simd_float4x4 *)((uint8_t *)_boneBuf.contents + boneOff);
         NSUInteger n = MIN((NSUInteger)sk.size(), kMaxBones);
