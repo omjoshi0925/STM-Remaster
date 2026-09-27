@@ -37,3 +37,12 @@ reads SetVisible windows, daeAnims and qtes expose PlayDAEAnim and StartQTE.
 Honoured in play: player keyframes and SetAnim, object-thread motion for
 placed enemies, SetVisible, sounds, ChangeCamera. Not yet: PlayDAEAnim
 camera animations, QTE branching, PlayEffect.
+
+## Camera tracks and QTEs (Milestone 19)
+PlayDAEAnim mostly names per-cinematic character animations
+(spiderman_lv1_start, rhino_lv1_end); when it names a camera file, the
+runtime loads it as a CameraTrack: nodes Camera01 (eye) and Camera01_Target
+(look-at) sampled on the script clock. Camera_Lv1_End and Camera_Lv1_Gameover
+are standalone 40 s tracks the level ships. StartQTE opens a tap window in
+play; a tap branches to the success cinematic id, a lapse to the fail id,
+resolved through the level's cinematic id map.
