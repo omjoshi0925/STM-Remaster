@@ -396,6 +396,8 @@ fragment half4 frag(Out i                   [[stage_in]],
     std::vector<Popup> _popups;
     int _comboHits; uint32_t _comboLastMs;
     float _webEnergy;
+    uint32_t _dodgeUntilMs;      // dodging while nowMs < this
+    float _dodgeDirX, _dodgeDirY;
     TMAudioManager *_audio;
     std::vector<bdae::EnemySounds> _foeSounds;   // parallel to _foes
     std::vector<std::string> _bossStat;          // "" unless the foe is a boss
@@ -705,7 +707,13 @@ fragment half4 frag(Out i                   [[stage_in]],
     }
     BOOL playing = (_flow.phase == bdae::GameFlow::PLAYING) && !_paused;
     if (!playing) dt = 0;
-    if (_actor && playing) _actor->update(dt, moveX, moveY);
+    BOOL dodging = playing && (uint32_t)(now * 1000.0) < _dodgeUntilMs;
+    if (dodging) {
+        // the burst overrides the stick: run speed x3 along the dodge direction
+        float saved = _actor->runSpeed; _actor->runSpeed = 1600.0f;
+        _actor->update(dt, _dodgeDirX, _dodgeDirY);
+        _actor->runSpeed = saved;
+    } else if (_actor && playing) _actor->update(dt, moveX, moveY);
 
     // -------- combat simulation (Milestone 6) --------
     uint32_t nowMs = (uint32_t)(now * 1000.0);
@@ -1882,6 +1890,7 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
     }
     _heroHP = 100.0f;
     _webEnergy = 100.0f;
+    _dodgeUntilMs = 0;
     _paused = NO;
     if (_levelReady) _script.bind(*_room);
     if (_levelReady)
@@ -1971,7 +1980,23 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
             }
             return;
         }
-        if (inside(dodge)) return;   // dodge: not implemented yet
+        if (inside(dodge)) {   // dodge: a 260 ms burst, invulnerable for its duration
+            uint32_t nowMs = (uint32_t)(CACurrentMediaTime() * 1000.0);
+            if (_actor && nowMs >= _dodgeUntilMs) {
+                float yaw = _actor->yaw();
+                _dodgeDirX = cosf(yaw); _dodgeDirY = sinf(yaw);
+                if (fabsf(_stickX) + fabsf(_stickY) > 0.2f) {   // toward the stick when it is held
+                    float rx = cosf(_camYaw), ry = -sinf(_camYaw), fx = sinf(_camYaw), fy = cosf(_camYaw);
+                    _dodgeDirX = rx * _stickX + fx * _stickY; _dodgeDirY = ry * _stickX + fy * _stickY;
+                    float l = sqrtf(_dodgeDirX * _dodgeDirX + _dodgeDirY * _dodgeDirY);
+                    if (l > 1e-3f) { _dodgeDirX /= l; _dodgeDirY /= l; }
+                }
+                _dodgeUntilMs = nowMs + 260;
+                std::string sw3 = _slotTablesOk ? _heroSounds.event("k_mc_sfx_swoosh_jump", _vox, _sfxVariant++) : "SFX_JUMP_SWOOSH_1";
+                [_audio playEvent:sw3.c_str()];
+            }
+            return;
+        }
     }
     CGFloat half = sw * 0.5;
     if (p.x < half && _moveTouchActive < 0) {
