@@ -615,3 +615,25 @@ all 18 PlayDAEAnim files load; unit coverage for nextQteAfter.
 Per-cinematic character animation files (spiderman_lv1_start and friends)
 are not yet played into the bound models.
 
+## Milestone 20 — the hero's cinematic animations, and the dodge (2026-09-27)
+
+### IMPLEMENTED
+When a script's player thread names a PlayDAEAnim file, the hero mesh is
+bound to that animation in a second model and its bone matrices drive
+Spider-Man on the script clock, played once and held (spiderman_lv1_start is
+a 53 s clip). The dodge button works: a 260 ms burst at triple run speed
+along the facing or stick direction with the hero's jump swoosh, invulnerable
+for its duration; taking a hit ends the combo; the dodge glyph flashes.
+Spider-sense cues when an enemy first notices you. Deaths are counted per
+level and reported on the score screen. Enemy DAE animation requests are
+reported in the console.
+
+### VERIFIED LOCALLY
+Four character animation files bind to their meshes with valid skins and
+real motion; player-thread PlayDAEAnim resolves in the scripts that use it;
+unit coverage for daeAnimAt and the deaths counter.
+
+### KNOWN LIMITATIONS
+Enemy DAE animations are reported, not played; dodge has no animation of its
+own yet.
+
