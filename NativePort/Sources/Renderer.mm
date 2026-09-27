@@ -790,6 +790,7 @@ fragment half4 frag(Out i                   [[stage_in]],
         _cineLastMs = t;
         _cineHidden.clear();
         for (int id : _cine.hiddenObjectsAt(t)) _cineHidden.insert(id);
+        if (_qteOpen && nowMs - _qteOpenedMs > 1200) [self resolveQte:NO now:nowMs];   // window lapsed = fail
         // QTE: when a StartQTE stamp passes, open a 1.2 s tap window
         if (!_qteOpen) {
             std::vector<bdae::Cinematic::Qte> qs = _cine.qtes();
@@ -1329,6 +1330,30 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
     [enc setDepthStencilState:_depth];
 }
 
+// ---------------------------------------------------------------- QTE ---
+// StartQTE names a success and a fail cinematic by id; branch by loading the
+// chosen script and running it in place of the current one.
+- (void)resolveQte:(BOOL)success now:(uint32_t)nowMs {
+    _qteOpen = NO;
+    int target = success ? _qte.successCinematic : _qte.failCinematic;
+    [_audio playEvent:(success ? "SFX_PUNCH_IMPACT_2" : "SFX_HURT_1")];
+    if (!_room) return;
+    auto it = _room->cinematicById.find(target);
+    if (it == _room->cinematicById.end() || it->second.empty()) {
+        NSLog(@"[TotalMayhem] QTE %d: branch %d has no script", _qte.id, target);
+        return;
+    }
+    std::string ce;
+    std::string path = _assetRootStr + "/" + kLevelDirs[_flow.levelIndex % kLevelCount] + "/" + it->second;
+    bdae::Cinematic next;
+    if (next.load(path, ce)) {
+        _cine = next;
+        _cineStartMs = nowMs; _cineLastMs = 0; _cineClip = nullptr; _cineClipName.clear();
+        _cineCamActive = NO; _qteNextIndex = 0;
+        NSLog(@"[TotalMayhem] QTE %d %s -> cinematic %d (%.1f s)", _qte.id, success ? "success" : "fail", target, _cine.durationMs / 1000.0);
+    } else NSLog(@"[TotalMayhem] QTE branch %s: %s", it->second.c_str(), ce.c_str());
+}
+
 // ------------------------------------------------------------ boot videos ---
 // The original boots into Gameloft-Logo.m4v then Spiderman-Trailer.m4v (the
 // comic-art motion piece), both skippable. Files live in Assets/videos/.
@@ -1832,8 +1857,9 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
             [self playVideoAtIndex:_videoIndex + 1];   // tap = skip this clip
             return;
         }
-        if (_flow.phase == bdae::GameFlow::CINEMATIC) {   // tap = skip the cinematic
-            _cineActive = NO;
+        if (_flow.phase == bdae::GameFlow::CINEMATIC) {
+            if (_qteOpen) { [self resolveQte:YES now:nowMs]; return; }   // tap inside the window = success
+            _cineActive = NO;   // otherwise tap = skip the cinematic
             _flow.startPlay(nowMs);
             return;
         }
