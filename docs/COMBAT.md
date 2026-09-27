@@ -12,3 +12,6 @@ in a 75 degree arc. Web attack: 25 web power, 15 damage, nearest foe within
 
 Placeholders, in one place (EnemyStats.damage): thugs 5, bosses 12 per hit.
 The AttackConfigs row linkage that would replace these is undecoded.
+
+Dodge: 260 ms at triple run speed, invulnerable; taking a hit resets the
+combo counter.
