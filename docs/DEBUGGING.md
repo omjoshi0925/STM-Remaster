@@ -21,3 +21,5 @@ block.
 Cinematics: `cinematic '<tag>': N threads, S s` when a script starts and `cinematic '<tag>' finished` when it ends; a load failure prints the script path and reason.
 
 Audio: `sound slot tables: original (63 enemy slots, 38 hero slots)` means the decoded tables drive event choice; `name convention` means a config failed to load.
+
+Cinematics: `cinematic camera track <file> (S s)` when a script drives the view from a camera BDAE; `QTE n success -> cinematic id` or `fail` when a window resolves.
