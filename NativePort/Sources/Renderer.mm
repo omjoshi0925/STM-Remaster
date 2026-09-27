@@ -413,6 +413,10 @@ fragment half4 frag(Out i                   [[stage_in]],
     std::string _cineName;
     const bdae::Clip *_cineClip;
     bdae::CameraTrack _cineCam;
+    std::unique_ptr<Model> _cineHero;      // hero mesh + the script's PlayDAEAnim file
+    std::string _cineHeroFile;
+    uint32_t _cineHeroStartMs;
+    BOOL _cineHeroActive;
     BOOL _cineCamActive;
     uint32_t _cineCamStartMs;
     BOOL _qteOpen;                 // a StartQTE window is live
@@ -763,7 +767,7 @@ fragment half4 frag(Out i                   [[stage_in]],
                 if (_cine.load(path, ce) && _cine.durationMs > 0) {
                     _cineActive = YES; _cineStartMs = nowMs; _cineLastMs = 0; _cineName = se.tag;
                     _cineClip = nullptr; _cineClipName.clear();
-                    _cineCamActive = NO; _qteOpen = NO; _qteNextIndex = 0;
+                    _cineCamActive = NO; _qteOpen = NO; _qteNextIndex = 0; _cineHeroActive = NO;
                     for (const bdae::Cinematic::DaeAnim &da : _cine.daeAnims()) {
                         std::string f = da.file; for (char &ch : f) ch = (char)tolower(ch);
                         if (f.find("camera") == std::string::npos) continue;
@@ -797,6 +801,26 @@ fragment half4 frag(Out i                   [[stage_in]],
             if (_qteNextIndex < (int)qs.size() && t >= qs[_qteNextIndex].stampMs) {
                 _qte = qs[_qteNextIndex++]; _qteOpen = YES; _qteOpenedMs = nowMs;
                 [_audio playEvent:"SFX_SPIDER_SENSE_IN"];
+            }
+        }
+        // PlayDAEAnim on the player thread: the script's own hero animation file
+        {
+            const bdae::CineThread *pth = _cine.thread(3);
+            bdae::Cinematic::DaeAnim da;
+            if (pth && _cine.daeAnimAt(pth->objectId, t, da)) {
+                std::string f = da.file;
+                while (f.rfind("./", 0) == 0 || f.rfind("../", 0) == 0) f = f.substr(f.find('/') + 1);
+                if (f != _cineHeroFile) {
+                    _cineHeroFile = f; _cineHeroActive = NO;
+                    std::string he;
+                    std::string p = bdae::resolveCaseInsensitive(_assetRootStr + "/" + kLevelDirs[_flow.levelIndex % kLevelCount] + "/" + f);
+                    auto m = std::make_unique<Model>();
+                    if (m->loadMesh(_assetRootStr + "/entities/meshes_bin/spiderman_mesh.bdae", he) && m->loadAnimation(p, he) && !m->clips.empty()) {
+                        _cineHero = std::move(m); _cineHeroActive = YES; _cineHeroStartMs = _cineStartMs + da.stampMs;
+                        NSLog(@"[TotalMayhem] cinematic hero animation %s (%.1f s)", f.c_str(),
+                              (_cineHero->clips[0].endMs - _cineHero->clips[0].startMs) / 1000.0);
+                    } else NSLog(@"[TotalMayhem] cinematic hero animation %s: %s", f.c_str(), he.c_str());
+                }
             }
         }
         // SetAnim: play the script's clip on the hero, switching when it changes
