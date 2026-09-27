@@ -9,6 +9,7 @@ Open
 - Roughly 448 of the 592 xlsStrings keys have empty English values; the level names and game name are present, so the pairing is right and the empties are unused or other-language keys.
 - Cinematic playback assumes ChangeCamera dir points from camera to target; if scenes look reversed, negate it. Player keyframes are applied with spawnAt each frame, so the SetAnim clip is reported but not yet played.
 - Cinematic object threads move enemies but not props or the named vehicle objects (Bus, Rocket); PlayDAEAnim camera animations and QTE branching are parsed, not played.
+- PlayDAEAnim character animations (spiderman_lv1_start, rhino_lv1_end) are not yet played; the hero uses the SetAnim clip from spiderman_anim instead.
 
 Fixed
 - Red circles wallpapering the scene: wrong atlas rectangles, replaced with measured ones.
