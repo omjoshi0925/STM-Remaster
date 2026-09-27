@@ -397,6 +397,7 @@ fragment half4 frag(Out i                   [[stage_in]],
     int _comboHits; uint32_t _comboLastMs;
     float _webEnergy;
     uint32_t _dodgeUntilMs;      // dodging while nowMs < this
+    uint32_t _senseCueMs;
     float _dodgeDirX, _dodgeDirY;
     TMAudioManager *_audio;
     std::vector<bdae::EnemySounds> _foeSounds;   // parallel to _foes
@@ -735,6 +736,7 @@ fragment half4 frag(Out i                   [[stage_in]],
         if (playing && fi < _foeSounds.size() && fe.alive() &&
             fe.state != bdae::EnemyActor::IDLE && fi < _foeBarked.size() && !_foeBarked[fi]) {
             _foeBarked[fi] = true;
+            if (nowMs - _senseCueMs > 4000) { _senseCueMs = nowMs; [_audio playEvent:"SFX_SPIDER_SENSE_IN"]; }
             const bdae::EnemySounds &es = _foeSounds[fi];
             std::string v = es.voices.empty() ? es.voice : es.voices[(size_t)(_sfxVariant++) % es.voices.size()];
             float dx = fe.x - heroPos.x, dy = fe.y - heroPos.y;
