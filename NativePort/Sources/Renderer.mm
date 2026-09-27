@@ -779,6 +779,14 @@ fragment half4 frag(Out i                   [[stage_in]],
         }
         Vec3 cp; float cyaw;
         if (_actor && _cine.playerPoseAt(t, cp, cyaw)) _actor->spawnAt(cp, cyaw);
+        // object threads: the script moves the props it names (by scene node id)
+        for (PropInst &pp : _props) {
+            Vec3 op; float oyaw;
+            if (pp.nodeId >= 0 && _cine.objectPoseAt(pp.nodeId, t, op, oyaw)) {
+                pp.x = op.x; pp.y = op.y; pp.z = op.z;
+                pp.model = simd_mul(MTranslate(op.x, op.y, op.z), MRotZ(oyaw));
+            }
+        }
         // object threads: the script moves the enemies it names (by scene node id)
         for (size_t fi = 0; fi < _foes.size() && fi < _foeNodeId.size(); ++fi) {
             Vec3 op; float oyaw;
