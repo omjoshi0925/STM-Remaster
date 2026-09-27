@@ -19,3 +19,5 @@
 - ledger: the five-section status block in CHANGELOG.md
 - slot table: BehaviorSoundMapList / MC_SOUND, mapping a sound moment to VoxSounds rows
 - object thread: a cinematic thread bound to a scene node id, moved by MoveObject
+- camera track: a camera BDAE animation (Camera01 + Camera01_Target) sampled during a cinematic
+- QTE: a StartQTE tap window that branches to a success or fail cinematic
