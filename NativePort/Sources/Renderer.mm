@@ -718,7 +718,8 @@ fragment half4 frag(Out i                   [[stage_in]],
         if (playing && fi < _foeSounds.size() && fe.alive() &&
             fe.state != bdae::EnemyActor::IDLE && fi < _foeBarked.size() && !_foeBarked[fi]) {
             _foeBarked[fi] = true;
-            const std::string &v = _foeSounds[fi].voice;
+            const bdae::EnemySounds &es = _foeSounds[fi];
+            std::string v = es.voices.empty() ? es.voice : es.voices[(size_t)(_sfxVariant++) % es.voices.size()];
             float dx = fe.x - heroPos.x, dy = fe.y - heroPos.y;
             if (!v.empty() && dx * dx + dy * dy < 2600.0f * 2600.0f) [_audio playEvent:v.c_str()];
         }
