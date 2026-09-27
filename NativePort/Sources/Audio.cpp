@@ -204,6 +204,11 @@ EnemySounds VoxTable::soundsFor(const std::string& statName, const BehaviorSound
     for (int i = 0; i < 3; ++i) { std::string e = map.event(hurtSlots[i], statName, *this); if (!e.empty()) s.hurt[i] = e; }
     std::string d = map.event("dies", statName, *this); if (!d.empty()) s.dies = d;
     std::string v = map.event("Voice_1", statName, *this); if (!v.empty()) s.voice = v;
+    for (int i = 1; i <= 12; ++i) {
+        std::string vn = map.event("Voice_" + std::to_string(i), statName, *this);
+        if (!vn.empty()) s.voices.push_back(vn);
+    }
+    if (s.voices.empty() && !s.voice.empty()) s.voices.push_back(s.voice);
     return s;
 }
 

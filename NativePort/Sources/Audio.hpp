@@ -27,6 +27,7 @@ struct EnemySounds {
     std::string hurt[3];
     std::string dies;
     std::string voice;
+    std::vector<std::string> voices;   // every Voice_N cell the slot table fills
 };
 
 struct VoxTable {
