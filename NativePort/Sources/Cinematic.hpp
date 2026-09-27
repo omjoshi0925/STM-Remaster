@@ -81,6 +81,8 @@ struct Cinematic {
     std::vector<Qte> qtes() const;
     // The next StartQTE at or after t, if any.
     bool nextQteAfter(uint32_t t, Qte& out) const;
+    // The PlayDAEAnim in effect on a thread (by object id) at t, if any.
+    bool daeAnimAt(int objectId, uint32_t t, DaeAnim& out) const;
 };
 
 // A camera path from a PlayDAEAnim animation file (camera_lv1_*.bdae):

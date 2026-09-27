@@ -177,6 +177,13 @@ std::vector<Cinematic::Qte> Cinematic::qtes() const {
     return out;
 }
 
+bool Cinematic::daeAnimAt(int objectId, uint32_t t, DaeAnim& out) const {
+    bool found = false;
+    for (const DaeAnim& a : daeAnims())
+        if (a.objectId == objectId && a.stampMs <= t && (!found || a.stampMs >= out.stampMs)) { out = a; found = true; }
+    return found;
+}
+
 bool Cinematic::nextQteAfter(uint32_t t, Qte& out) const {
     bool found = false;
     for (const Qte& q : qtes())
