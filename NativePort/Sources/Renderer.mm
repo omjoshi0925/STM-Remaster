@@ -759,6 +759,8 @@ fragment half4 frag(Out i                   [[stage_in]],
             if (!ev.empty()) [_audio playEvent:ev.c_str()];
         }
         if (playing && f.update(nowMs, dtMs, heroPos) && _heroHP > 0) {
+            if (nowMs < _dodgeUntilMs) continue;          // a dodge is invulnerable
+            _comboHits = 0;                                // taking a hit ends the combo
             _heroHP = fmaxf(0.0f, _heroHP - f.stats.damage);
             std::string hu = _slotTablesOk ? _heroSounds.event("k_mc_sfx_hurt", _vox, _sfxVariant++) : "SFX_HURT_1";
             [_audio playEvent:hu.c_str()];
