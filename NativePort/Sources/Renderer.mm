@@ -422,6 +422,7 @@ fragment half4 frag(Out i                   [[stage_in]],
     int _bossIndex;                              // foe index driving the boss bar, or -1
     BOOL _winPlayed;
     BOOL _musicAction;
+    uint32_t _scoreMusicMs;
     uint32_t _scoreScreenMs;
     uint32_t _musicSwitchMs;
     UILabel *_flowLabel;
@@ -816,6 +817,9 @@ fragment half4 frag(Out i                   [[stage_in]],
             NSLog(@"[TotalMayhem] cinematic '%s' finished", _cineName.c_str());
         }
     }
+    if (_flow.phase == bdae::GameFlow::COMPLETE && _scoreMusicMs && nowMs >= _scoreMusicMs) {
+        _scoreMusicMs = 0; [_audio playMusic:"M_SCORE_SCREEN" looping:YES];
+    }
     if (playing) _webEnergy = fminf(100.0f, _webEnergy + dt * 8.0f);
     // the level music follows the fight: calm bed until several enemies are
     // engaged, the mixed bed while they are
@@ -881,6 +885,7 @@ fragment half4 frag(Out i                   [[stage_in]],
         }
         if (_flow.phase == bdae::GameFlow::COMPLETE && !_winPlayed) {
             _winPlayed = YES; [_audio playMusic:"M_WIN" looping:NO];
+            _scoreMusicMs = nowMs + 4000;   // the score bed follows the win sting
             _scoreScreenMs = nowMs;
         }
         if (_heroHP <= 0) {
@@ -1736,7 +1741,7 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
     _npcAnchor.clear(); _npcs.clear(); _foes.clear();
     _cineActive = NO;
     _foeSounds.clear(); _foeBarked.clear(); _foeStat.clear(); _foeNodeId.clear(); _bossStat.clear(); _bossIndex = -1;
-    _winPlayed = NO; _musicAction = NO; _musicSwitchMs = 0;
+    _winPlayed = NO; _musicAction = NO; _musicSwitchMs = 0; _scoreMusicMs = 0;
     _npcBones = nil;
     _room = std::make_unique<LevelRoom>();
     _levelReady = _room->loadFullLevel(assetRoot, kLevelDirs[idx % kLevelCount], levelErr);
