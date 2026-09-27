@@ -56,7 +56,8 @@ struct GameFlow {
     int visitedCount() const;
     bool takeCheckpointReached() { bool r = checkpointReached; checkpointReached = false; return r; }
     bool checkpointReached = false;
-    void onDeath(uint32_t nowMs) { phase = DEAD; phaseStartMs = nowMs; }
+    int deaths = 0;
+    void onDeath(uint32_t nowMs) { phase = DEAD; phaseStartMs = nowMs; ++deaths; }
     void respawn(uint32_t nowMs) { phase = PLAYING; phaseStartMs = nowMs; }
 };
 
