@@ -595,3 +595,23 @@ QTE branch pairs resolve; unit suites cover the new queries.
 Props and vehicle objects named by threads do not move; PlayDAEAnim camera
 animations and QTE branching are not played; no 3D panning.
 
+## Milestone 19 — camera tracks, QTEs and the rest of the script (2026-09-26)
+
+### IMPLEMENTED
+CameraTrack decodes the camera BDAEs (Camera01 + Camera01_Target on a 40 s
+clip) and drives the view when a script's PlayDAEAnim names a camera file.
+QTEs: a StartQTE opens a 1.2 s TAP! window; a tap branches to the success
+cinematic, a lapse to the fail cinematic, through the cinematic id map.
+Object threads now move props as well as enemies. Hostages are rescued on
+contact (+100). Aggro barks cycle through every Voice_N the slot table
+fills. M_TITLE plays on the chapter card and M_SCORE_SCREEN follows the win
+sting.
+
+### VERIFIED LOCALLY
+Both shipped camera tracks decode with distinct moving eye and target;
+all 18 PlayDAEAnim files load; unit coverage for nextQteAfter.
+
+### KNOWN LIMITATIONS
+Per-cinematic character animation files (spiderman_lv1_start and friends)
+are not yet played into the bound models.
+
