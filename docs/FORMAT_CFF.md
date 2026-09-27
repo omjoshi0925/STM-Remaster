@@ -46,3 +46,10 @@ runtime loads it as a CameraTrack: nodes Camera01 (eye) and Camera01_Target
 are standalone 40 s tracks the level ships. StartQTE opens a tap window in
 play; a tap branches to the success cinematic id, a lapse to the fail id,
 resolved through the level's cinematic id map.
+
+## Character animation files (Milestone 20)
+A PlayDAEAnim on the player thread binds the hero mesh to the named file
+(spiderman_lv1_start is a 53 s clip on the 38-joint skin) in a second model
+on the script clock, played once and held on the last frame. Enemy threads'
+files (rhino_lv1_end, thug_bat01_lv1_start) load the same way in the suites
+but are not yet played in the renderer; the console reports each request.
