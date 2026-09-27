@@ -37,3 +37,4 @@ Asset-free unit suites (`hosttests/run_unit_tests.sh`, also run by CI):
 | cinematic_unit | parser on a synthetic script |
 | sound_slots_test | BehaviorSoundMapList and MC_SOUND decode to VoxSounds rows |
 | camera_track_test | camera BDAEs decode to moving eye and target; PlayDAEAnim files load |
+| dae_anim_test | per-cinematic animation files bind to their meshes with real motion |
