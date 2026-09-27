@@ -15,9 +15,9 @@ Ordered by leverage; each item lists where its data/reference lives.
    `WebGrabPoint` nodes, Player state machine symbols.
 5. **Camera areas** - `CameraArea` nodes (authored camera volumes; the
    current orbit camera is not original).
-6. **Character DAE animations** - PlayDAEAnim names per-cinematic hero and
-   enemy animation files; loading them into the bound models is the last big
-   cinematic gap.
+6. **Enemy DAE animations** - the hero plays its per-cinematic files
+   (Milestone 20); binding enemy files (rhino_lv1_end, thug_*_lv1_start) to
+   the foes their threads name is the last cinematic gap.
 7. **Cinematic fidelity** - the .cff format is decoded and scripts play
    (Milestone 17: player keyframes, sounds, ChangeCamera). Still to honour:
    PlayDAEAnim camera animations (camera_lv1_* BDAEs), object-thread motion
