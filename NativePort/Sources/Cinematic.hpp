@@ -83,4 +83,15 @@ struct Cinematic {
     bool nextQteAfter(uint32_t t, Qte& out) const;
 };
 
+// A camera path from a PlayDAEAnim animation file (camera_lv1_*.bdae):
+// two animated nodes, Camera01 (eye) and Camera01_Target (look-at).
+struct CameraTrack {
+    Model model;
+    int eyeNode = -1, targetNode = -1;
+    uint32_t durationMs = 0;
+    bool load(const std::string& bdaePath, std::string& err);
+    // Eye and target at t (clamped to the clip); false if not loaded.
+    bool sample(uint32_t t, Vec3& eye, Vec3& target);
+};
+
 } // namespace bdae

@@ -184,6 +184,39 @@ bool Cinematic::nextQteAfter(uint32_t t, Qte& out) const {
     return found;
 }
 
+bool CameraTrack::load(const std::string& bdaePath, std::string& err) {
+    std::string e;
+    model = Model();
+    // the scene graph (node names) is read by the mesh pass; a camera file has
+    // no renderable geometry, so that pass reports failure but still fills nodes
+    model.loadMesh(bdaePath, e);
+    e.clear();
+    if (!model.loadAnimation(bdaePath, e) || model.clips.empty()) { err = e.empty() ? "no clips in " + bdaePath : e; return false; }
+    eyeNode = targetNode = -1;
+    for (size_t i = 0; i < model.nodes.size(); ++i) {
+        const std::string& n = model.nodes[i].name;
+        if (n.find("Target") != std::string::npos) { if (targetNode < 0) targetNode = (int)i; }
+        else if (n.rfind("Camera", 0) == 0 && eyeNode < 0) eyeNode = (int)i;
+    }
+    if (eyeNode < 0 && !model.nodes.empty()) eyeNode = 0;
+    if (targetNode < 0 && model.nodes.size() > 1) targetNode = 1;
+    durationMs = model.clips[0].endMs > model.clips[0].startMs ? model.clips[0].endMs - model.clips[0].startMs : 0;
+    return eyeNode >= 0;
+}
+
+bool CameraTrack::sample(uint32_t t, Vec3& eye, Vec3& target) {
+    if (eyeNode < 0 || model.clips.empty()) return false;
+    if (t > durationMs) t = durationMs;
+    model.poseAtTime(model.clips[0].startMs + t);
+    const std::vector<Mat4>& W = model.worldTransforms();
+    if (eyeNode >= (int)W.size()) return false;
+    eye = Vec3{ W[eyeNode].m[12], W[eyeNode].m[13], W[eyeNode].m[14] };
+    if (targetNode >= 0 && targetNode < (int)W.size())
+        target = Vec3{ W[targetNode].m[12], W[targetNode].m[13], W[targetNode].m[14] };
+    else target = Vec3{ eye.x, eye.y + 100.0f, eye.z };
+    return true;
+}
+
 float Cinematic::yawFromQuat(float x, float y, float z, float w) {
     return std::atan2(2.0f * (w * z + x * y), 1.0f - 2.0f * (y * y + z * z));
 }
