@@ -12,7 +12,7 @@ int main() {
     ck(!f.takeCheckpointReached(), "the report clears");
     ck(f.checkpoint.x == 100, "respawn point moved to the checkpoint");
     ck(f.comicNodeReached({500, 0, 0}) == 0 && f.comicNodeReached({500, 0, 0}) == -1, "comic node fires once");
-    f.onDeath(3000); ck(f.phase == GameFlow::DEAD, "death phase");
+    f.onDeath(3000); ck(f.phase == GameFlow::DEAD && f.deaths == 1, "death phase counts the death");
     f.respawn(3500); ck(f.phase == GameFlow::PLAYING, "respawn resumes play");
     ck(f.updatePlaying({1000, 0, 0}, 4000) && f.phase == GameFlow::COMPLETE, "last checkpoint completes the level");
     UNIT_END("GAMEFLOW UNIT");
