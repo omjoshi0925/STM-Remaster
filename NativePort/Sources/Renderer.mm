@@ -114,6 +114,7 @@ struct CineActorInst {
     int boneSlot = -1;                    // skinned: region index into _actorBones
     int foeIndex = -1;                    // enemy this actor stands in for (hidden meanwhile)
     int propIndex = -1;                   // static prop this actor replaces (skipped meanwhile)
+    bool live = false;                    // bound by the script that is running now
 };
 
 static uint32_t rdle32(const uint8_t *p) {
@@ -882,6 +883,9 @@ fragment half4 frag(Out i                   [[stage_in]],
                 _foes[fi].x = op.x; _foes[fi].y = op.y; _foes[fi].z = op.z; _foes[fi].yaw = oyaw;
             }
         }
+        // cinematic actors bound by this script follow its clock (first frame
+        // held until their PlayDAEAnim stamp, last frame held after)
+        for (auto &ap : _cineActors) if (ap->live) ap->actor.poseAt(t);
         if (t > _cine.durationMs + 400) {
             if (_cineHeroActive && _cineHero && _actor && !_cineHero->clips.empty()) {
                 // gameplay resumes where the authored animation left Spider-Man
@@ -894,6 +898,7 @@ fragment half4 frag(Out i                   [[stage_in]],
                 _actor->spawnAt(feet, yaw);
                 NSLog(@"[TotalMayhem] cinematic hero resumes at (%.0f, %.0f, %.0f)", feet.x, feet.y, feet.z);
             }
+            for (auto &ap : _cineActors) if (ap->live) { ap->actor.poseAt(ap->actor.startMs + ap->actor.durationMs()); ap->live = false; }
             _cineActive = NO; _cineHidden.clear(); _cineHeroActive = NO; _cineHeroFile.clear();
             _flow.startPlay(nowMs);
             NSLog(@"[TotalMayhem] cinematic '%s' finished", _cineName.c_str());
@@ -1139,6 +1144,7 @@ fragment half4 frag(Out i                   [[stage_in]],
     }
     _lastVP = vp; _lastW = (float)view.drawableSize.width; _lastH = (float)view.drawableSize.height;
     [self drawEnemies:enc vp:vp time:now];
+    [self drawCineActors:enc vp:vp];
 
     if (_heroReady && _heroIndexCount) {
         const std::vector<Mat4> &sk = (_cineActive && _cineHeroActive && _cineHero)
@@ -1854,6 +1860,11 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
         for (size_t i = 0; i < _cineActors.size(); ++i)
             if (_cineActors[i]->actor.objectId == da.objectId) { _cineActors.erase(_cineActors.begin() + (long)i); break; }
         if (_cineActors.size() >= (size_t)kMaxCineActors) _cineActors.erase(_cineActors.begin());
+        if (inst->actor.skinned && inst->actor.model.skin.jointNode.size() > 40) {
+            NSLog(@"[TotalMayhem] cinematic actor %d: %zu joints exceed the bone slot", da.objectId, inst->actor.model.skin.jointNode.size());
+            continue;
+        }
+        inst->live = true;
         if (inst->actor.skinned) {
             std::vector<bool> used((size_t)kMaxCineActors, false);
             for (auto &a : _cineActors) if (a->boneSlot >= 0) used[(size_t)a->boneSlot] = true;
@@ -1927,6 +1938,55 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
     inst->batchCount = (int)_actorCounts.size() - inst->firstBatch;
 }
 
+// Actors draw with an identity model matrix: the animation files place them
+// in world space. Skinned ones go through the skinned pipeline with their own
+// bone region; rigid ones draw each piece on its animated node.
+- (void)drawCineActors:(id<MTLRenderCommandEncoder>)enc vp:(simd_float4x4)vp {
+    if (_cineActors.empty() || !_actorBones || !_actorVBs) return;
+    const NSUInteger frameOff = (_frameIdx % kFramesInFlight) * kMaxCineActors * kBoneSlot;
+    Uniforms u; u.vp = vp; u.tint = (simd_float4){1, 1, 1, 1};
+    for (auto &ap : _cineActors) {
+        CineActorInst &a = *ap;
+        if (!a.actor.ok || a.batchCount <= 0) continue;
+        if (_cineActive && _cineHidden.count(a.actor.objectId)) continue;
+        if (a.actor.skinned) {
+            if (a.boneSlot < 0) continue;
+            const std::vector<Mat4> &sk = a.actor.model.skinningMatrices();
+            NSUInteger off = frameOff + (NSUInteger)a.boneSlot * kBoneSlot;
+            simd_float4x4 *dst = (simd_float4x4 *)((uint8_t *)_actorBones.contents + off);
+            NSUInteger nb = MIN((NSUInteger)sk.size(), (NSUInteger)40);
+            for (NSUInteger k = 0; k < nb; ++k) dst[k] = ToSimd(sk[k]);
+            int b = a.firstBatch;
+            u.model = MIdent();
+            u.misc = (simd_float4){_actorTex[(NSUInteger)b] != _white ? 1.0f : 0.0f, 0, 0, 0};
+            [enc setRenderPipelineState:_skinPipe];
+            [enc setVertexBuffer:_actorVBs[(NSUInteger)b] offset:0 atIndex:0];
+            [enc setVertexBytes:&u length:sizeof(u) atIndex:1];
+            [enc setVertexBuffer:_actorBones offset:off atIndex:2];
+            [enc setFragmentTexture:_actorTex[(NSUInteger)b] atIndex:0];
+            [enc setFragmentBytes:&u length:sizeof(u) atIndex:1];
+            [enc drawIndexedPrimitives:MTLPrimitiveTypeTriangle indexCount:_actorCounts[(size_t)b]
+                             indexType:MTLIndexTypeUInt16 indexBuffer:_actorIBs[(NSUInteger)b] indexBufferOffset:0];
+        } else {
+            [enc setRenderPipelineState:_staticPipe];
+            for (const bdae::CineActor::Piece &pc : a.actor.pieces()) {
+                u.model = ToSimd(pc.world);
+                for (int b = a.firstBatch; b < a.firstBatch + a.batchCount; ++b) {
+                    if (_actorBatchMesh[(size_t)b] != pc.mesh) continue;
+                    u.misc = (simd_float4){_actorTex[(NSUInteger)b] != _white ? 1.0f : 0.0f, 0, 0, 0};
+                    [enc setVertexBytes:&u length:sizeof(u) atIndex:1];
+                    [enc setFragmentBytes:&u length:sizeof(u) atIndex:1];
+                    [enc setFragmentTexture:_actorTex[(NSUInteger)b] atIndex:0];
+                    [enc setFragmentTexture:_white atIndex:1];
+                    [enc setVertexBuffer:_actorVBs[(NSUInteger)b] offset:0 atIndex:0];
+                    [enc drawIndexedPrimitives:MTLPrimitiveTypeTriangle indexCount:_actorCounts[(size_t)b]
+                                     indexType:MTLIndexTypeUInt16 indexBuffer:_actorIBs[(NSUInteger)b] indexBufferOffset:0];
+                }
+            }
+        }
+    }
+}
+
 - (void)drawEnemies:(id<MTLRenderCommandEncoder>)enc vp:(simd_float4x4)vp time:(CFTimeInterval)now {
     if (_npcs.empty() || !_npcBones) return;
     const NSUInteger kSlot = kBoneSlot;
@@ -1983,6 +2043,7 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
     _npcAnchor.clear(); _npcs.clear(); _foes.clear();
     _cineActive = NO;
     _foeSounds.clear(); _foeBarked.clear(); _foeStat.clear(); _foeNodeId.clear(); _bossStat.clear(); _bossIndex = -1;
+    _cineActors.clear(); _actorVBs = nil; _actorIBs = nil; _actorTex = nil; _actorCounts.clear(); _actorBatchMesh.clear();
     _winPlayed = NO; _musicAction = NO; _musicSwitchMs = 0; _scoreMusicMs = 0;
     _npcBones = nil;
     _room = std::make_unique<LevelRoom>();
