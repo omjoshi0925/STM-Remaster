@@ -1,4 +1,5 @@
 #include "Cinematic.hpp"
+#include <algorithm>
 #include <cctype>
 #include <cmath>
 #include <cstdio>
@@ -162,6 +163,28 @@ std::vector<int> Cinematic::hiddenObjectsAt(uint32_t t) const {
     }
     for (const auto& e : byId) if (e.second) out.push_back(e.first);
     return out;
+}
+
+std::vector<Cinematic::Message> Cinematic::messages() const {
+    std::vector<Message> out;
+    for (const CineThread& th : threads)
+        for (const CineCommand& c : th.commands)
+            if (c.name == "ShowMessage") {
+                Message m;
+                m.stampMs = c.stampMs;
+                m.timerMs = (uint32_t)std::max(0.0f, c.num("Timer", 0));
+                m.stringId = c.str("$LEVEL_STRINGID");
+                m.face = (int)c.num("$MessageFace", 0);
+                out.push_back(m);
+            }
+    return out;
+}
+
+bool Cinematic::messageAt(uint32_t t, Message& out) const {
+    bool found = false;
+    for (const Message& m : messages())
+        if (m.stampMs <= t && t < m.stampMs + m.timerMs && (!found || m.stampMs >= out.stampMs)) { out = m; found = true; }
+    return found;
 }
 
 bool Cinematic::cameraRequest(CameraRequest& out) const {

@@ -91,6 +91,14 @@ struct Cinematic {
     // whether it marks the level end.
     struct CameraRequest { std::string file; uint32_t stampMs = 0; int nextCinematic = -1; float farPlane = 0; bool levelEnd = false; };
     bool cameraRequest(CameraRequest& out) const;
+
+    // ShowMessage on the Basic thread: subtitle lines. stringId is a key in
+    // the level's xlsStrings table (STR_PROLOGUE_SPIDERMAN_01), face the
+    // speaker portrait id (1 Spider-Man), timerMs how long it stays up.
+    struct Message { uint32_t stampMs = 0; uint32_t timerMs = 0; std::string stringId; int face = 0; };
+    std::vector<Message> messages() const;
+    // The message on screen at t, if any (latest started, still within its timer).
+    bool messageAt(uint32_t t, Message& out) const;
 };
 
 // PlayDAEAnim names files the pack does not always ship under that exact
