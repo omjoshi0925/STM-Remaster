@@ -15,13 +15,16 @@ Ordered by leverage; each item lists where its data/reference lives.
    `WebGrabPoint` nodes, Player state machine symbols.
 5. **Camera areas** - `CameraArea` nodes (authored camera volumes; the
    current orbit camera is not original).
-6. **Enemy DAE animations** - the hero plays its per-cinematic files
-   (Milestone 20); binding enemy files (rhino_lv1_end, thug_*_lv1_start) to
-   the foes their threads name is the last cinematic gap.
-7. **Cinematic fidelity** - the .cff format is decoded and scripts play
-   (Milestone 17: player keyframes, sounds, ChangeCamera). Still to honour:
-   PlayDAEAnim camera animations (camera_lv1_* BDAEs), object-thread motion
-   and SetVisible, QTE branching (StartQTE success/fail ids), PlayEffect.
+6. **Script commands still unhonoured** - after Milestone 21 (actors,
+   PlayDAECamera, chaining, level end, subtitles) the remaining .cff verbs
+   by count: InterfaceControl 53, IfObjectDestroyed 20, SetSlowMotion 18,
+   DisableTrigger 18, Tutorial 14, StartCinematic 13, IfEnemyDead 9,
+   EnableTrigger 7, PlayEffect 7, Transport 6, ShowHealth 6, Save 6,
+   ShakeCamera 5. StartCinematic and the If* gates decide when the scripted
+   set pieces fire, so they come first; Tutorial pairs with Tutorial.map
+   strings. Reference: `CCinematicThread` in ENGINE_MAP.md.
+7. **Subtitle portraits** - $MessageFace 3/4/5/9 (girl, cop, Sandman...) need
+   their portrait art; interface_2.tga and the GS screens are where to look.
 7. **Menus** - `mainmenu.tga` + GS_* screen definitions + `interface_2.tga`.
 8. **Saves / ranks** - `LevelRank.bin`, `data.save` + `levelRanks.dat`
    specimens from the Android image.
