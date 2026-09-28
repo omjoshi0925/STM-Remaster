@@ -1,4 +1,5 @@
-// PlayDAEAnim camera animations: the camera BDAEs decode to a moving path.
+// Camera tracks: the camera BDAEs decode to a moving path, and every
+// PlayDAECamera a script issues resolves to one.
 #include "Cinematic.hpp"
 #include "Level.hpp"
 #include <cmath>
@@ -28,39 +29,60 @@ int main(int argc, char** argv) {
     Vec3 e2, t2;
     ck(ct.sample(ct.durationMs + 99999, e2, t2), "sampling past the end clamps");
 
-    // every camera animation a script asks for ships and loads
-    std::set<std::string> files;
-    std::string dir = root + "/levelnew_01/cinematics";
-    DIR* d = opendir(dir.c_str());
-    while (dirent* en = readdir(d)) {
-        std::string n = en->d_name;
-        if (n.size() < 5 || n.compare(n.size() - 4, 4, ".cff") != 0) continue;
-        Cinematic c; if (!c.load(dir + "/" + n, e)) continue;
-        for (auto& a : c.daeAnims()) {
-            std::string f = a.file;
+    // Scripts ask for their camera with PlayDAECamera on the Basic thread
+    // (not PlayDAEAnim): every requested camera file ships, decodes as a
+    // track, and every chained ^ID^Cinematic^Next resolves to a Cinematic node.
+    int scripts = 0, withCamera = 0, tracksLoad = 0, chained = 0, chainsResolve = 0, levelEnds = 0;
+    float farMin = 1e9f, farMax = 0;
+    for (const char* lv : { "levelnew_01", "levelnew_02" }) {
+        LevelRoom room; std::string le;
+        if (!room.loadFullLevel(root, lv, le)) { ck(false, "level loads", le); continue; }
+        std::string dir = root + "/" + lv + "/cinematics";
+        DIR* d = opendir(dir.c_str());
+        if (!d) continue;
+        while (dirent* en = readdir(d)) {
+            std::string n = en->d_name;
+            if (n.size() < 5 || n.compare(n.size() - 4, 4, ".cff") != 0) continue;
+            Cinematic c; if (!c.load(dir + "/" + n, e)) continue;
+            ++scripts;
+            Cinematic::CameraRequest cr;
+            if (!c.cameraRequest(cr)) continue;
+            ++withCamera;
+            std::string f = cr.file;
             while (f.rfind("./", 0) == 0 || f.rfind("../", 0) == 0) f = f.substr(f.find('/') + 1);
-            files.insert(f);
+            CameraTrack t2s; std::string te;
+            std::string p = resolveCaseInsensitive(root + "/" + lv + "/" + f);
+            bool ok = t2s.load(p, te);
+            if (ok) ++tracksLoad; else std::printf("    %s: %s (%s)\n", n.c_str(), f.c_str(), te.c_str());
+            std::printf("    %-34s %-36s %s %5.1fs far %.0f next %d%s\n", n.c_str(), f.c_str(), ok ? "track" : "FAIL ",
+                        t2s.durationMs / 1000.0, cr.farPlane, cr.nextCinematic, cr.levelEnd ? "  [level end]" : "");
+            if (cr.farPlane > 0) { farMin = std::fmin(farMin, cr.farPlane); farMax = std::fmax(farMax, cr.farPlane); }
+            if (cr.levelEnd) ++levelEnds;
+            if (cr.nextCinematic >= 0) { ++chained; if (room.cinematicById.count(cr.nextCinematic)) ++chainsResolve; }
         }
+        closedir(d);
     }
-    closedir(d);
-    int loadable = 0, cameras = 0; std::string firstBad;
-    for (auto& f : files) {
-        CameraTrack t2s; std::string le;
-        std::string p = resolveCaseInsensitive(root + "/levelnew_01/" + f);
-        Model probe; std::string pe;
-        bool anim = probe.loadAnimation(p, pe);
-        if (anim) ++loadable; else if (firstBad.empty()) firstBad = f;
-        if (f.find("amera") != std::string::npos && t2s.load(p, le)) ++cameras;
+    char b[160];
+    snprintf(b, sizeof b, "%d scripts, %d with PlayDAECamera, %d tracks load, %d chained (%d resolve), %d level ends, far %.0f..%.0f",
+             scripts, withCamera, tracksLoad, chained, chainsResolve, levelEnds, farMin, farMax);
+    ck(withCamera >= 5, "PlayDAECamera appears in the set-piece scripts of both levels", b);
+    ck(tracksLoad == withCamera, "every requested camera file ships and decodes as a track");
+    ck(chained >= 1 && chainsResolve == chained, "every ^ID^Cinematic^Next names a Cinematic node the level knows");
+    ck(levelEnds >= 2, "the level-end scripts are flagged (Level 1 end, Level 2 end)");
+    // no PlayDAEAnim names a camera file: the old scan for one found nothing
+    int camByAnim = 0;
+    std::string dir1 = root + "/levelnew_01/cinematics";
+    if (DIR* d = opendir(dir1.c_str())) {
+        while (dirent* en = readdir(d)) {
+            std::string n = en->d_name;
+            if (n.size() < 5 || n.compare(n.size() - 4, 4, ".cff") != 0) continue;
+            Cinematic c; if (!c.load(dir1 + "/" + n, e)) continue;
+            for (auto& a : c.daeAnims()) { std::string f = a.file; for (char& ch : f) ch = (char)tolower(ch);
+                if (f.find("/camera_") != std::string::npos) ++camByAnim; }
+        }
+        closedir(d);
     }
-    std::printf("  PlayDAEAnim files: %zu distinct, %d load, %d are camera tracks\n", files.size(), loadable, cameras);
-    ck(!files.empty() && loadable == (int)files.size(), "every PlayDAEAnim file loads", firstBad);
-    // the standalone camera tracks the level ships (referenced by the engine, not by PlayDAEAnim)
-    int shipped = 0;
-    for (const char* f : {"Camera_Lv1_End.bdae", "Camera_Lv1_Gameover.bdae"}) {
-        CameraTrack t3; std::string le;
-        if (t3.load(resolveCaseInsensitive(root + "/levelnew_01/meshes_bin/" + f), le)) ++shipped;
-    }
-    ck(shipped == 2, "both shipped Level 1 camera tracks decode");
+    ck(camByAnim == 0, "camera files are never requested through PlayDAEAnim", std::to_string(camByAnim));
     std::printf("\n%s (%d failures)\n", fails ? "CAMERA TRACK FAILED" : "CAMERA TRACK PASSED", fails);
     return fails ? 1 : 0;
 }
