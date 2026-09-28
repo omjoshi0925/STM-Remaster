@@ -85,6 +85,15 @@ struct Cinematic {
     bool daeAnimAt(int objectId, uint32_t t, DaeAnim& out) const;
 };
 
+// PlayDAEAnim names files the pack does not always ship under that exact
+// name: the script asks for web_rope_ci_lv1_start.bdae and the pack holds
+// web_rope_ci_0_lv1_start.bdae; car_plice_1107_lv1_Start.bdae sits beside
+// car_plice_lv1_Start.bdae. Resolve exact (case-insensitive) first, then the
+// same name with every "_<digits>_" token collapsed. Returns "" when nothing
+// in `dir` matches, so a missing file (woman_lv1_start.bdae) is reported, not
+// guessed.
+std::string resolveAnimVariant(const std::string& dir, const std::string& requestedBasename);
+
 // A camera path from a PlayDAEAnim animation file (camera_lv1_*.bdae):
 // two animated nodes, Camera01 (eye) and Camera01_Target (look-at).
 struct CameraTrack {

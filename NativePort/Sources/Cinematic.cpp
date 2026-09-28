@@ -1,8 +1,10 @@
 #include "Cinematic.hpp"
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <dirent.h>
 
 namespace bdae {
 namespace {
@@ -189,6 +191,39 @@ bool Cinematic::nextQteAfter(uint32_t t, Qte& out) const {
     for (const Qte& q : qtes())
         if (q.stampMs >= t && (!found || q.stampMs < out.stampMs)) { out = q; found = true; }
     return found;
+}
+
+namespace {
+std::string lowerStr(std::string s) { for (char& c : s) c = (char)std::tolower((unsigned char)c); return s; }
+// "web_rope_ci_0_lv1_start.bdae" -> "web_rope_ci_lv1_start.bdae"
+std::string collapseNumericTokens(const std::string& name) {
+    std::string out; size_t i = 0;
+    while (i < name.size()) {
+        if (name[i] == '_') {
+            size_t j = i + 1;
+            while (j < name.size() && std::isdigit((unsigned char)name[j])) ++j;
+            if (j > i + 1 && j < name.size() && name[j] == '_') { i = j; continue; }   // drop "_123" before "_"
+        }
+        out.push_back(name[i]); ++i;
+    }
+    return out;
+}
+} // namespace
+
+std::string resolveAnimVariant(const std::string& dir, const std::string& requestedBasename) {
+    std::string want = lowerStr(requestedBasename);
+    DIR* d = opendir(dir.c_str());
+    if (!d) return std::string();
+    std::string exact, variant; int variants = 0;
+    while (struct dirent* e = readdir(d)) {
+        std::string n = lowerStr(e->d_name);
+        if (n == want) { exact = e->d_name; break; }
+        if (collapseNumericTokens(n) == collapseNumericTokens(want)) { variant = e->d_name; ++variants; }
+    }
+    closedir(d);
+    if (!exact.empty()) return dir + "/" + exact;
+    if (variants == 1) return dir + "/" + variant;    // ambiguous variants stay unresolved
+    return std::string();
 }
 
 bool CameraTrack::load(const std::string& bdaePath, std::string& err) {
