@@ -42,3 +42,5 @@ $CXX -std=c++17 -O2 -I "$SRC" -o /tmp/stm_dae "$SRC/BDAEModel.cpp" "$SRC/Level.c
 echo "== dae animations ==";  /tmp/stm_dae "$ASSETS"
 $CXX -std=c++17 -O2 -I "$SRC" -o /tmp/stm_actor "$SRC/BDAEModel.cpp" "$SRC/Level.cpp" "$SRC/Cinematic.cpp" "$SRC/CineActor.cpp" cine_actor_test.cpp
 echo "== cinematic actors ==";  /tmp/stm_actor "$ASSETS"
+$CXX -std=c++17 -O2 -I "$SRC" -o /tmp/stm_dialogue "$SRC/BDAEModel.cpp" "$SRC/Level.cpp" "$SRC/Cinematic.cpp" "$SRC/GameFlow.cpp" dialogue_test.cpp
+echo "== dialogue ==";           /tmp/stm_dialogue "$ASSETS"
