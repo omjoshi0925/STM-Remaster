@@ -29,4 +29,32 @@ std::string resolveActorMesh(const LevelRoom& room, int objectId);
 // frame before the PlayDAEAnim stamp, play once, hold the last frame after.
 uint32_t actorClipTime(uint32_t scriptMs, uint32_t startMs, uint32_t clipStartMs, uint32_t clipEndMs);
 
+// One animated object: its mesh with the script's animation file bound.
+struct CineActor {
+    int objectId = -1;
+    std::string meshFile, animFile;      // paths as resolved on disk
+    uint32_t startMs = 0;                // PlayDAEAnim stamp on the script clock
+    Model model;
+    bool skinned = false;
+    bool ok = false;
+
+    // loadMesh(meshPath) then loadAnimation(animPath); requires one clip.
+    bool load(const std::string& meshPath, const std::string& animPath, std::string& err);
+    uint32_t durationMs() const;
+    bool finished(uint32_t scriptMs) const { return scriptMs >= startMs + durationMs(); }
+    // Pose the model for a script time (see actorClipTime).
+    void poseAt(uint32_t scriptMs);
+    // Feet position of a skinned actor / root node of a rigid one, after poseAt.
+    Vec3 anchor();
+    // Facing from root motion over the previous 400 ms; false when standing still.
+    bool motionYaw(uint32_t scriptMs, float& yaw);
+
+    // Rigid actors draw their meshes on animated nodes: one piece per
+    // instance, or by matching mesh name to node name when the file has no
+    // instance table (car_plice: 6 meshes, 2 nodes). Collision boxes ("bbox*"),
+    // unnamed "_" duplicates and morph targets are skipped.
+    struct Piece { int mesh = -1; Mat4 world; };
+    std::vector<Piece> pieces() const;
+};
+
 } // namespace bdae
