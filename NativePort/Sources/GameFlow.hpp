@@ -11,11 +11,16 @@
 
 namespace bdae {
 
-// xlsStrings: MAIN.map = newline-separated keys, MAIN_<LANG>.data = values,
-// line-paired by index.
+// xlsStrings: <name>.map = newline-separated keys; <name>_<LANG>.data = a
+// u32 count, count u32 byte offsets, then NUL-terminated UTF-16LE strings,
+// key i pairing with string i (MAIN: 591 strings; levelnew_01: 18 subtitle
+// lines). A plain text .data (one value per line) still loads for tests.
 struct StringTable {
     std::map<std::string, std::string> byKey;
+    size_t decodedBinary = 0;   // strings read from the offset-table format
     bool load(const std::string& mapPath, const std::string& dataPath, std::string& err);
+    // Merge another table (level strings on top of MAIN); later keys win.
+    void merge(const StringTable& other) { for (const auto& kv : other.byKey) byKey[kv.first] = kv.second; }
     std::string get(const std::string& key, const std::string& fallback) const {
         auto it = byKey.find(key);
         return it == byKey.end() || it->second.empty() ? fallback : it->second;
