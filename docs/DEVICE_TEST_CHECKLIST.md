@@ -33,3 +33,14 @@ Cinematics
 - [ ] Trigger_Lv1_Start plays a letterboxed script with SKIP
 - [ ] A TAP! prompt during a QTE; tapping and lapsing lead to different scripts
 - [ ] Walking into a hostage awards +100
+
+Cinematic actors and subtitles (Milestone 21)
+- [ ] Prologue: Spider-Man swings in from above and lands beside the spawn (not offset or rotated away from the scene)
+- [ ] Three thugs and a cop stand near the girl and animate at 16 s; the police car drives in at 35 s
+- [ ] Subtitles appear in the lower bar in the outlined font ("My spider-sense has been going wild..."), Spider-Man's portrait on his lines
+- [ ] The camera follows the authored track (not the gameplay orbit) for the whole 53 s, then the chained script plays before play resumes
+- [ ] Play resumes with Spider-Man where the animation left him; the knocked-out thugs stay down
+- [ ] Skipping the prologue also lands him at the end position
+- [ ] Level 1 end: Sandman, the car and Rhino animate; the level completes when the script ends
+- [ ] Level 2 end: Rhino's own animation replaces the boss; two cops and the car arrive
+- [ ] No T-posed characters standing in the world before their scene

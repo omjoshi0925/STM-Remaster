@@ -23,3 +23,5 @@ Cinematics: `cinematic '<tag>': N threads, S s` when a script starts and `cinema
 Audio: `sound slot tables: original (63 enemy slots, 38 hero slots)` means the decoded tables drive event choice; `name convention` means a config failed to load.
 
 Cinematics: `cinematic camera track <file> (S s)` when a script drives the view from a camera BDAE; `QTE n success -> cinematic id` or `fail` when a window resolves.
+
+Cinematics (Milestone 21): `cinematic actor <id>: <mesh> plays <file> from S s (D s, skinned|rigid, N batches)` per object thread bound; `does not ship` or `no scene node` when one cannot bind; `cinematic camera <file> (S s), far F, next N[, level end]` for the PlayDAECamera; `cinematic hero resumes at (x, y, z)` where play continues; `level N complete (authored end)` when a level-end script finishes; `chained cinematic N has no script` if a ^ID^Cinematic^Next is unresolved. `level strings: N subtitle lines` on level load.

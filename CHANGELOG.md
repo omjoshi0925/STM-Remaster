@@ -637,3 +637,57 @@ unit coverage for daeAnimAt and the deaths counter.
 Enemy DAE animations are reported, not played; dodge has no animation of its
 own yet.
 
+## Milestone 21 — cinematic actors, the authored camera, subtitles (2026-09-28)
+
+### IMPLEMENTED
+Cinematic actors: the CI_* AnimatedObjects (three thugs, the girl, the cop,
+the police car, the web rope, fake_sandman, CI_Rhino, the gameover camera
+prop) and, in Level 2, the Boss_Rhino spawn itself now play the animation
+files their object threads name, skinned characters through the skinned
+pipeline and vehicles as node-animated rigid pieces, on the script clock,
+held on their last frame for the rest of the level. The files are authored
+in world space, so actors and Spider-Man's own per-cinematic animation draw
+with an identity model matrix (the M20 hero path had the gameplay placement
+on top, now corrected) and play resumes where the animation left him.
+Skinned AnimatedObjects no longer stand in the world in bind pose before
+their scene. PlayDAECamera on the Basic thread is honoured: the authored
+camera track drives every set piece (the M19 path looked for camera files in
+PlayDAEAnim and never fired), a script runs until its camera track and hero
+animation finish, ^ID^Cinematic^Next chains the prologue into its second
+script, and "level end" completes the level. ShowMessage subtitles draw in
+the lower letterbox bar in the original font with Spider-Man's portrait on
+his lines, from the level's own xlsStrings table. The xlsStrings .data
+format is decoded properly (u32 offset table of UTF-16 strings): 589 of 591
+MAIN strings and both level subtitle tables read back verbatim. One
+startCinematic path serves triggers, QTE branches and chains; skipping
+settles the scene the same way a natural end does. New module CineActor
+(hpp/cpp), resolveAnimVariant, propById/enemyIndexById, StringTable::merge.
+
+### VERIFIED LOCALLY
+Host suites (22) and unit suites (7) all pass against the extracted 1.0.1
+packs: all 18 object-thread PlayDAEAnims in Levels 1 and 2 map to a scene
+node, ship (variant spellings resolved), load and animate; thug_bat01 starts
+331 units from the Level 1 spawn (world-space proof); all 5 PlayDAECamera
+tracks load, both chains resolve, both level-end scripts are flagged; all 28
+ShowMessage lines resolve to text; MAIN decodes to 591 strings with the real
+title and chapter names. Each of the 27 commits compiles on its own
+(engine and suites with g++ -fsyntax-only; Renderer.mm static checks). The
+runner again runs the strings, asset audit and format regression suites.
+
+### REQUIRES DEVICE VALIDATION
+Everything visual: actor placement and scale in the prologue, the rigid car
+pieces (bbox/morph meshes skipped by name), the camera track framing and far
+plane, subtitle wrapping, the resume position after the prologue and after a
+skip, the Level 1 and Level 2 end scripts completing the level. No device
+screenshots have been received since Milestone 12.
+
+### KNOWN LIMITATIONS
+Portraits only for face 1; farPlane recorded not applied; StartCinematic,
+Tutorial, InterfaceControl, If* gates, SetSlowMotion, ShakeCamera,
+DisableTrigger/EnableTrigger, Save, PlayEffect, Transport not honoured; one
+actor per object per script; hostages still in bind pose; bone regions for
+16 actors per level.
+
+### NOT YET IMPLEMENTED
+Wall traversal and web swing, original boss phases, menus, saves and ranks,
+destruction states, room streaming, 3D audio panning, levels 3 to 12.

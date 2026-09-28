@@ -21,3 +21,7 @@
 - object thread: a cinematic thread bound to a scene node id, moved by MoveObject
 - camera track: a camera BDAE animation (Camera01 + Camera01_Target) sampled during a cinematic
 - QTE: a StartQTE tap window that branches to a success or fail cinematic
+- cinematic actor: an AnimatedObject (CI_*) or enemy spawn a script animates with PlayDAEAnim; drawn in the file's own world space
+- Basic thread: the .cff thread with object -1 carrying PlayDAECamera, ShowMessage and level-wide SetVisible
+- PlayDAECamera: the command that names a script's camera track, the script to chain into and whether it ends the level
+- offset table: the xlsStrings .data layout (u32 count, u32 offsets, UTF-16 strings)

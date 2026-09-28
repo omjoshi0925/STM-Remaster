@@ -21,14 +21,17 @@ containers (`*.pack`, `*.ipa`, `*.apk`, media) are gitignored.
   Level 1 <-> Level 2; mid-level comic beats from the original Comic nodes
 - Combat: config-driven enemy stats/AI (melee + ranged), 3-hit combo,
   knockback, web attack with web-power meter, bosses spawn with real assets
-- Cinematics: the .cff scripts decoded and played (player keyframes,
-  sounds, camera changes) when their trigger fires
+- Cinematics: the .cff scripts decoded and played when their trigger
+  fires: player keyframes, sounds, authored camera tracks (PlayDAECamera)
+  with chained scripts and level ends, cinematic actors playing their
+  world-space animation files, subtitles from the level's string table
 - Audio driven by the original slot tables (enemy matrix and hero slots),
   and cinematics that move the enemies they name
 - Authentic HUD from `interface.tga` (every sprite rectangle verified
   visually - `docs/`) and all UI text in the original outlined font
-- 11 host-side test suites validate parsers and gameplay logic against the
-  real game data before anything ships to a device (`hosttests/`)
+- 22 host-side suites and 7 asset-free unit suites validate parsers and
+  gameplay logic against the real game data before anything ships to a
+  device (`hosttests/`)
 
 ## Getting started
 1. Clone, and place your legally obtained packs in

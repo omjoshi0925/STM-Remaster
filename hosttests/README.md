@@ -36,5 +36,9 @@ Asset-free unit suites (`hosttests/run_unit_tests.sh`, also run by CI):
 | cinematic_test | every .cff parses, sample values, sounds exist, trigger links |
 | cinematic_unit | parser on a synthetic script |
 | sound_slots_test | BehaviorSoundMapList and MC_SOUND decode to VoxSounds rows |
-| camera_track_test | camera BDAEs decode to moving eye and target; PlayDAEAnim files load |
+| camera_track_test | camera BDAEs decode to moving eye and target; every PlayDAECamera request loads, chains resolve, level ends flagged |
 | dae_anim_test | per-cinematic animation files bind to their meshes with real motion |
+| cine_actor_test | every object-thread PlayDAEAnim in Levels 1 and 2 maps to a scene node, its file ships, loads and animates in world space |
+| cine_actor_unit | actor clock, enemy mesh table, scene-id lookups, file-variant resolution |
+| dialogue_test | every ShowMessage resolves to text in the level's string table; faces and timers |
+| strings_test | xlsStrings offset-table decode (591 strings), chapter names, per-level subtitle tables |
