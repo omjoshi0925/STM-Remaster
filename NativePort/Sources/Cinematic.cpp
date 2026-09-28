@@ -146,15 +146,37 @@ bool Cinematic::objectPoseAt(int objectId, uint32_t t, Vec3& pos, float& yaw) co
 
 std::vector<int> Cinematic::hiddenObjectsAt(uint32_t t) const {
     std::vector<int> out;
+    std::vector<std::pair<int, bool>> byId;   // Basic-thread SetVisible ObjectID -> latest state
     for (const CineThread& th : threads) {
         bool hidden = false;
         for (const CineCommand& c : th.commands) {
             if (c.stampMs > t) break;
-            if (c.name == "SetVisible") hidden = !c.flag("Visible");
+            if (c.name != "SetVisible") continue;
+            if (const CineAttr* id = c.attr("ObjectID")) {
+                bool found = false;
+                for (auto& e : byId) if (e.first == id->i) { e.second = !c.flag("Visible"); found = true; }
+                if (!found) byId.push_back({ id->i, !c.flag("Visible") });
+            } else hidden = !c.flag("Visible");
         }
         if (hidden) out.push_back(th.objectId);
     }
+    for (const auto& e : byId) if (e.second) out.push_back(e.first);
     return out;
+}
+
+bool Cinematic::cameraRequest(CameraRequest& out) const {
+    for (const CineThread& th : threads)
+        for (const CineCommand& c : th.commands)
+            if (c.name == "PlayDAECamera") {
+                out.file = c.str("CameraAnimFile");
+                for (char& ch : out.file) if (ch == '\\') ch = '/';
+                out.stampMs = c.stampMs;
+                out.nextCinematic = (int)c.num("^ID^Cinematic^Next", -1);
+                out.farPlane = c.num("farPlane", 0);
+                out.levelEnd = c.flag("level end");
+                return true;
+            }
+    return false;
 }
 
 std::vector<Cinematic::DaeAnim> Cinematic::daeAnims() const {

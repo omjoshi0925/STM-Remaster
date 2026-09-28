@@ -71,7 +71,8 @@ struct Cinematic {
 
     // Any thread by scene object id: pose from its MoveObject keyframes.
     bool objectPoseAt(int objectId, uint32_t t, Vec3& pos, float& yaw) const;
-    // Object threads whose SetVisible is false at t (by object id).
+    // Objects whose SetVisible is false at t: object threads by their own id,
+    // plus Basic-thread SetVisible commands that carry an ObjectID.
     std::vector<int> hiddenObjectsAt(uint32_t t) const;
     // PlayDAEAnim commands: which BDAE animation a thread plays from when.
     struct DaeAnim { int objectId; std::string file; int clip; uint32_t stampMs; };
@@ -83,6 +84,13 @@ struct Cinematic {
     bool nextQteAfter(uint32_t t, Qte& out) const;
     // The PlayDAEAnim in effect on a thread (by object id) at t, if any.
     bool daeAnimAt(int objectId, uint32_t t, DaeAnim& out) const;
+
+    // PlayDAECamera on the Basic thread: the authored camera track for the
+    // whole script (camera_lv1_start.bdae), the script to chain into when this
+    // one ends (^ID^Cinematic^Next, -1 for none), the far plane it asks for and
+    // whether it marks the level end.
+    struct CameraRequest { std::string file; uint32_t stampMs = 0; int nextCinematic = -1; float farPlane = 0; bool levelEnd = false; };
+    bool cameraRequest(CameraRequest& out) const;
 };
 
 // PlayDAEAnim names files the pack does not always ship under that exact
