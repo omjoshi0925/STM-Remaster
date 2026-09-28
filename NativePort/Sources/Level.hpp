@@ -123,6 +123,11 @@ struct LevelRoom {
 
     std::vector<Vec3> restorePoints;   // RestorePoint markers (death recovery)
 
+    // Scene-id lookups for cinematic object threads: the prop a thread names
+    // (AnimatedObject "CI_*" actors), or the index of the enemy spawn it names.
+    const PropSpawn* propById(int nodeId) const;
+    int enemyIndexById(int nodeId) const;   // -1 when no spawn has that id
+
     // Index of the camera volume containing p, or -1.
     int cameraVolumeAt(const Vec3& p) const;
     void resolveScripting();   // called by loadFullLevel once all rooms are in

@@ -433,6 +433,18 @@ void LevelRoom::resolveScripting() {
     }
 }
 
+const LevelRoom::PropSpawn* LevelRoom::propById(int nodeId) const {
+    if (nodeId < 0) return nullptr;
+    for (const PropSpawn& p : props) if (p.nodeId == nodeId) return &p;
+    return nullptr;
+}
+
+int LevelRoom::enemyIndexById(int nodeId) const {
+    if (nodeId < 0) return -1;
+    for (size_t i = 0; i < enemies.size(); ++i) if (enemies[i].nodeId == nodeId) return (int)i;
+    return -1;
+}
+
 int LevelRoom::cameraVolumeAt(const Vec3& p) const {
     for (size_t i = 0; i < cameraVolumes.size(); ++i)
         if (cameraVolumes[i].contains(p)) return (int)i;
