@@ -477,6 +477,7 @@ fragment half4 frag(Out i                   [[stage_in]],
     // spawns) a script animates with PlayDAEAnim. They persist for the rest of
     // the level, held on the last frame, so knocked-out thugs stay down.
     std::vector<std::unique_ptr<CineActorInst>> _cineActors;
+    std::set<int> _actorObjects;              // scene ids an actor stands in for (prop/enemy skipped)
     NSMutableArray<id<MTLBuffer>> *_actorVBs, *_actorIBs;
     NSMutableArray<id<MTLTexture>> *_actorTex;
     std::vector<NSUInteger> _actorCounts;
@@ -1505,7 +1506,8 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
 // ------------------------------------------------------------------ props ---
 // Every original prop placement (lampposts, cars, hostages, destructibles...)
 // as static textured geometry. Archetypes are shared per mesh file; skinned
-// props (hostages) draw in bind pose for now.
+// hostages draw in bind pose for now, skinned AnimatedObjects wait for the
+// cinematic that animates them (Milestone 21).
 - (void)loadPropsFromLevel:(const std::string &)assetRoot {
     _propVBs = [NSMutableArray new]; _propIBs = [NSMutableArray new]; _propTex = [NSMutableArray new];
     _propCounts.clear(); _propBatchArch.clear(); _propAlphaTest.clear(); _props.clear();
@@ -1514,6 +1516,7 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
     if (!_levelReady) return;
     std::map<std::string, int> archOf;      // meshFile -> archetype index (-1 = failed)
     std::vector<std::pair<int, int>> archRange;   // [firstBatch, count) per archetype
+    std::vector<bool> archSkinned;                // the mesh carries a skin (a character)
     int placed = 0;
     for (const LevelRoom::PropSpawn &pr : _room->props) {
         if (_props.size() >= 320) break;
@@ -1563,6 +1566,7 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
             }
             ai = (int)archRange.size();
             archRange.push_back({first, (int)_propCounts.size() - first});
+            archSkinned.push_back(m.skin.valid);
             archOf[pr.meshFile] = ai;
         }
         if (ai < 0) continue;
@@ -1571,6 +1575,9 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
         pi.x = pr.transform.m[12]; pi.y = pr.transform.m[13]; pi.z = pr.transform.m[14];
         pi.alive = true; pi.destructible = (pr.type == "DestroyableObject");
         pi.hostage = (pr.type == "Hostage");
+        // A skinned AnimatedObject is a cinematic actor (CI_thug1, CI_Cop, fake_sandman,
+        // CI_Rhino): it is not standing in the world in bind pose; its script brings it on.
+        if (pr.type == "AnimatedObject" && ai < (int)archSkinned.size() && archSkinned[(size_t)ai]) pi.alive = false;
         _props.push_back(pi); ++placed;
     }
     _propRanges = archRange;
@@ -1585,6 +1592,7 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
     for (const PropInst &p : _props) {
         if (!p.alive) continue;
         if (_cineActive && _cineHidden.count(p.nodeId)) continue;
+        if (!_actorObjects.empty() && _actorObjects.count(p.nodeId)) continue;   // a cinematic actor draws it now
         float dx = p.x - eye.x, dy = p.y - eye.y;
         if (dx * dx + dy * dy > 9000.0f * 9000.0f) continue;   // distance cull
         u.model = p.model;
@@ -1876,6 +1884,7 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
         NSLog(@"[TotalMayhem] cinematic actor %d: %s plays %s from %.1f s (%.1f s, %s, %d batches)", da.objectId,
               mesh.c_str(), base.c_str(), da.stampMs / 1000.0, inst->actor.durationMs() / 1000.0,
               inst->actor.skinned ? "skinned" : "rigid", inst->batchCount);
+        _actorObjects.insert(da.objectId);
         _cineActors.push_back(std::move(inst));
     }
 }
@@ -2013,6 +2022,7 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
             float sink = _foes[i].corpseSink(nowMs);
             if (sink >= 1.0f) continue;
             if (_cineActive && i < _foeNodeId.size() && _cineHidden.count(_foeNodeId[i])) continue;
+            if (i < _foeNodeId.size() && !_actorObjects.empty() && _actorObjects.count(_foeNodeId[i])) continue;   // its actor is on stage
             ez -= sink * 240.0f;
         }
         Uniforms u;
@@ -2043,7 +2053,7 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
     _npcAnchor.clear(); _npcs.clear(); _foes.clear();
     _cineActive = NO;
     _foeSounds.clear(); _foeBarked.clear(); _foeStat.clear(); _foeNodeId.clear(); _bossStat.clear(); _bossIndex = -1;
-    _cineActors.clear(); _actorVBs = nil; _actorIBs = nil; _actorTex = nil; _actorCounts.clear(); _actorBatchMesh.clear();
+    _cineActors.clear(); _actorObjects.clear(); _actorVBs = nil; _actorIBs = nil; _actorTex = nil; _actorCounts.clear(); _actorBatchMesh.clear();
     _winPlayed = NO; _musicAction = NO; _musicSwitchMs = 0; _scoreMusicMs = 0;
     _npcBones = nil;
     _room = std::make_unique<LevelRoom>();
