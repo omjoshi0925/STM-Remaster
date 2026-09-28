@@ -16,6 +16,7 @@
 #include "GameFlow.hpp"
 #include "Script.hpp"
 #include "Cinematic.hpp"
+#include "CineActor.hpp"
 #include <memory>
 #include <cmath>
 #include <cstring>
@@ -101,10 +102,19 @@ static const NSUInteger kBoneSlot = 2560;      // 40 bones * 64 B, 256-aligned
 static const NSUInteger kFramesInFlight = 3;   // bone buffers are rewritten per frame
 static const char *kLevelDirs[] = {"levelnew_01", "levelnew_02"};
 static const int kLevelCount = 2;
+static const int kMaxCineActors = 16;          // bone-buffer regions reserved for cinematic actors
 
 struct GPUSkinVertex { float p[3]; float n[3]; float uv[2]; uint16_t bone[4]; float w[4]; };
 struct GPUStaticVertex { float p[3]; float n[3]; float uv[2]; float uv2[2]; uint8_t c[4]; };   // 44 B
 struct Uniforms { simd_float4x4 vp; simd_float4x4 model; simd_float4 tint; simd_float4 misc; };
+// One cinematic actor bound to GPU batches (see bindCineActors).
+struct CineActorInst {
+    bdae::CineActor actor;
+    int firstBatch = 0, batchCount = 0;   // range into the renderer's _actor* batch arrays
+    int boneSlot = -1;                    // skinned: region index into _actorBones
+    int foeIndex = -1;                    // enemy this actor stands in for (hidden meanwhile)
+    int propIndex = -1;                   // static prop this actor replaces (skipped meanwhile)
+};
 
 static uint32_t rdle32(const uint8_t *p) {
     return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
@@ -461,6 +471,16 @@ fragment half4 frag(Out i                   [[stage_in]],
     struct PropInst { int arch; simd_float4x4 model; float x, y, z; bool alive; bool destructible; int nodeId; bool hostage; };
     std::set<int> _cineHidden;                   // object ids hidden by the running script
     std::vector<PropInst> _props;
+
+    // Milestone 21: cinematic actors - the CI_* AnimatedObjects (and the enemy
+    // spawns) a script animates with PlayDAEAnim. They persist for the rest of
+    // the level, held on the last frame, so knocked-out thugs stay down.
+    std::vector<std::unique_ptr<CineActorInst>> _cineActors;
+    NSMutableArray<id<MTLBuffer>> *_actorVBs, *_actorIBs;
+    NSMutableArray<id<MTLTexture>> *_actorTex;
+    std::vector<NSUInteger> _actorCounts;
+    std::vector<int> _actorBatchMesh;         // mesh index per batch (rigid pieces pick by mesh)
+    id<MTLBuffer> _actorBones;                // kFramesInFlight * kMaxCineActors * kBoneSlot
     std::vector<bool> _bonusTaken;
     std::vector<std::pair<int, int>> _propRanges;
     int _score;
@@ -781,13 +801,7 @@ fragment half4 frag(Out i                   [[stage_in]],
                     _cineActive = YES; _cineStartMs = nowMs; _cineLastMs = 0; _cineName = se.tag;
                     _cineClip = nullptr; _cineClipName.clear();
                     _cineCamActive = NO; _qteOpen = NO; _qteNextIndex = 0; _cineHeroActive = NO;
-                    for (const bdae::Cinematic::DaeAnim &da : _cine.daeAnims()) {
-                        const bdae::CineThread *pt0 = _cine.thread(3);
-                        if (pt0 && da.objectId == pt0->objectId) continue;
-                        std::string lf = da.file; for (char &ch : lf) ch = (char)tolower(ch);
-                        if (lf.find("camera") == std::string::npos)
-                            NSLog(@"[TotalMayhem] cinematic: object %d wants animation %s (enemy DAE animations not played yet)", da.objectId, da.file.c_str());
-                    }
+                    [self bindCineActors];
                     for (const bdae::Cinematic::DaeAnim &da : _cine.daeAnims()) {
                         std::string f = da.file; for (char &ch : f) ch = (char)tolower(ch);
                         if (f.find("camera") == std::string::npos) continue;
@@ -1808,6 +1822,109 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
                                          options:MTLResourceStorageModeShared];
     NSLog(@"[TotalMayhem] enemies placed: %zu of %zu parsed spawns (%zu archetypes)",
           _npcs.size(), _room->enemies.size(), _npcModel.size());
+}
+
+// ------------------------------------------------------- cinematic actors ---
+- (void)bindCineActors {
+    if (!_room) return;
+    if (!_actorVBs) { _actorVBs = [NSMutableArray new]; _actorIBs = [NSMutableArray new]; _actorTex = [NSMutableArray new]; }
+    if (!_actorBones)
+        _actorBones = [_device newBufferWithLength:kFramesInFlight * kMaxCineActors * kBoneSlot options:MTLResourceStorageModeShared];
+    const bdae::CineThread *pt = _cine.thread(3);
+    const std::string levelDir = kLevelDirs[_flow.levelIndex % kLevelCount];
+    for (const bdae::Cinematic::DaeAnim &da : _cine.daeAnims()) {
+        if (pt && da.objectId == pt->objectId) continue;          // Spider-Man has his own path (_cineHero)
+        std::string f = da.file;
+        while (f.rfind("./", 0) == 0 || f.rfind("../", 0) == 0) f = f.substr(f.find('/') + 1);
+        size_t sl = f.find_last_of('/');
+        std::string base = sl == std::string::npos ? f : f.substr(sl + 1);
+        std::string mesh = bdae::resolveActorMesh(*_room, da.objectId);
+        if (mesh.empty()) { NSLog(@"[TotalMayhem] cinematic actor %d: no scene node for %s", da.objectId, base.c_str()); continue; }
+        std::string anim = bdae::resolveAnimVariant(_assetRootStr + "/" + levelDir + "/meshes_bin", base);
+        if (anim.empty()) { NSLog(@"[TotalMayhem] cinematic actor %d: %s does not ship", da.objectId, base.c_str()); continue; }
+        auto inst = std::make_unique<CineActorInst>();
+        inst->actor.objectId = da.objectId;
+        inst->actor.startMs = da.stampMs;
+        std::string e;
+        if (!inst->actor.load(bdae::resolveCaseInsensitive(_assetRootStr + "/" + mesh), anim, e)) {
+            NSLog(@"[TotalMayhem] cinematic actor %d: %s", da.objectId, e.c_str());
+            continue;
+        }
+        // an actor already standing in for this object hands over to the new script
+        for (size_t i = 0; i < _cineActors.size(); ++i)
+            if (_cineActors[i]->actor.objectId == da.objectId) { _cineActors.erase(_cineActors.begin() + (long)i); break; }
+        if (_cineActors.size() >= (size_t)kMaxCineActors) _cineActors.erase(_cineActors.begin());
+        if (inst->actor.skinned) {
+            std::vector<bool> used((size_t)kMaxCineActors, false);
+            for (auto &a : _cineActors) if (a->boneSlot >= 0) used[(size_t)a->boneSlot] = true;
+            for (int k = 0; k < kMaxCineActors; ++k) if (!used[(size_t)k]) { inst->boneSlot = k; break; }
+        }
+        for (size_t i = 0; i < _foeNodeId.size(); ++i) if (_foeNodeId[i] == da.objectId) inst->foeIndex = (int)i;
+        for (size_t i = 0; i < _props.size(); ++i) if (_props[i].nodeId == da.objectId) inst->propIndex = (int)i;
+        [self buildActorBatches:inst.get()];
+        NSLog(@"[TotalMayhem] cinematic actor %d: %s plays %s from %.1f s (%.1f s, %s, %d batches)", da.objectId,
+              mesh.c_str(), base.c_str(), da.stampMs / 1000.0, inst->actor.durationMs() / 1000.0,
+              inst->actor.skinned ? "skinned" : "rigid", inst->batchCount);
+        _cineActors.push_back(std::move(inst));
+    }
+}
+
+// GPU batches for one actor: a skinned character is one skinned batch of its
+// first mesh (as the enemies are); a rigid vehicle is one static batch per
+// submesh of every mesh, tagged with its mesh index so pieces() can place it.
+- (void)buildActorBatches:(CineActorInst *)inst {
+    const Model &model = inst->actor.model;
+    inst->firstBatch = (int)_actorCounts.size();
+    auto pushTex = [&](const std::string &name) {
+        id<MTLTexture> t = [self levelTextureNamed:name];
+        if (!t && !model.textureNames.empty()) t = [self levelTextureNamed:model.textureNames.front()];
+        [_actorTex addObject:(t ? t : _white)];
+    };
+    if (inst->actor.skinned) {
+        const Mesh &m = model.meshes.front();
+        std::vector<GPUSkinVertex> verts(m.vertices.size());
+        for (size_t i = 0; i < m.vertices.size(); ++i) {
+            const Vertex &sv = m.vertices[i]; GPUSkinVertex &d = verts[i];
+            d.p[0] = sv.px; d.p[1] = sv.py; d.p[2] = sv.pz;
+            d.n[0] = sv.nx; d.n[1] = sv.ny; d.n[2] = sv.nz;
+            d.uv[0] = sv.u; d.uv[1] = sv.v;
+            for (int k = 0; k < 4; ++k) { d.bone[k] = sv.bone[k]; d.w[k] = sv.weight[k]; }
+        }
+        [_actorVBs addObject:[_device newBufferWithBytes:verts.data() length:verts.size() * sizeof(GPUSkinVertex) options:MTLResourceStorageModeShared]];
+        [_actorIBs addObject:[_device newBufferWithBytes:m.indices.data() length:m.indices.size() * sizeof(uint16_t) options:MTLResourceStorageModeShared]];
+        _actorCounts.push_back(m.indices.size());
+        _actorBatchMesh.push_back(0);
+        pushTex(m.subMeshes.empty() ? std::string() : m.subMeshes.front().diffuse);
+    } else {
+        for (size_t mi = 0; mi < model.meshes.size(); ++mi) {
+            const Mesh &mesh = model.meshes[mi];
+            auto pushRange = [&](uint32_t i0, uint32_t i1, const std::string &texName) {
+                std::vector<GPUStaticVertex> verts; std::vector<uint16_t> idx;
+                std::vector<int32_t> remap(mesh.vertices.size(), -1);
+                for (uint32_t i = i0; i < i1 && i < mesh.indices.size(); ++i) {
+                    uint16_t vi = mesh.indices[i];
+                    if (remap[vi] < 0) {
+                        const Vertex &v = mesh.vertices[vi]; GPUStaticVertex d;
+                        d.p[0] = v.px; d.p[1] = v.py; d.p[2] = v.pz;
+                        d.n[0] = v.nx; d.n[1] = v.ny; d.n[2] = v.nz;
+                        d.uv[0] = v.u; d.uv[1] = v.v; d.uv2[0] = v.u2; d.uv2[1] = v.v2;
+                        for (int k = 0; k < 4; ++k) d.c[k] = 255;
+                        remap[vi] = (int32_t)verts.size(); verts.push_back(d);
+                    }
+                    idx.push_back((uint16_t)remap[vi]);
+                }
+                if (verts.empty()) return;
+                [_actorVBs addObject:[_device newBufferWithBytes:verts.data() length:verts.size() * sizeof(GPUStaticVertex) options:MTLResourceStorageModeShared]];
+                [_actorIBs addObject:[_device newBufferWithBytes:idx.data() length:idx.size() * sizeof(uint16_t) options:MTLResourceStorageModeShared]];
+                _actorCounts.push_back(idx.size());
+                _actorBatchMesh.push_back((int)mi);
+                pushTex(texName);
+            };
+            if (mesh.subMeshes.empty()) pushRange(0, (uint32_t)mesh.indices.size(), "");
+            else for (const SubMesh &sm : mesh.subMeshes) pushRange(sm.firstIndex, sm.firstIndex + sm.indexCount, sm.diffuse);
+        }
+    }
+    inst->batchCount = (int)_actorCounts.size() - inst->firstBatch;
 }
 
 - (void)drawEnemies:(id<MTLRenderCommandEncoder>)enc vp:(simd_float4x4)vp time:(CFTimeInterval)now {
