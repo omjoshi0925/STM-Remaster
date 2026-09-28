@@ -1223,6 +1223,30 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
         useTex(_white);
         quad(0, 0, W, H * 0.11f, kFull, 0, 0, 0, 255);
         quad(0, H * 0.89f, W, H * 0.11f, kFull, 0, 0, 0, 255);
+        // ShowMessage subtitles: the script's line, from the level's own string
+        // table, in the original font inside the lower bar; Spider-Man's lines
+        // (face 1) carry his HUD portrait
+        bdae::Cinematic::Message msg;
+        if (_cineActive && _fontAtlas && _cine.messageAt(nowMs - _cineStartMs, msg)) {
+            std::string line = _strings.get(msg.stringId, "");
+            if (!line.empty()) {
+                const float th = 26 * sc, maxW = W * 0.82f;
+                std::vector<std::string> rows; std::string cur, word;
+                auto flush = [&]() { if (!cur.empty()) rows.push_back(cur); cur.clear(); };
+                for (size_t i = 0; i <= line.size(); ++i) {
+                    char c = i < line.size() ? line[i] : ' ';
+                    if (c != ' ') { word.push_back(c); continue; }
+                    std::string trial = cur.empty() ? word : cur + " " + word;
+                    if (textWidth(trial.c_str(), th) > maxW && !cur.empty()) { flush(); cur = word; } else cur = trial;
+                    word.clear();
+                }
+                flush();
+                if (rows.size() > 3) rows.resize(3);
+                float y = H * 0.89f + (H * 0.11f - rows.size() * (th + 4 * sc)) * 0.5f;
+                if (msg.face == 1) { useTex(_uiAtlas); quad(W * 0.04f, H * 0.89f + 6 * sc, 46 * sc, 70 * sc, kPortrait, 255, 255, 255, 255); }
+                for (const std::string &r : rows) { drawText(r.c_str(), W * 0.5f, y, th, 1, 255); y += th + 4 * sc; }
+            }
+        }
     } else if (_flow.phase != bdae::GameFlow::PLAYING) {
         useTex(_white);
         quad(0, 0, W, H, kFull, 6, 6, 10, _flow.phase == bdae::GameFlow::COMIC ? 255 : 225);
@@ -2097,6 +2121,14 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
     _room = std::make_unique<LevelRoom>();
     _levelReady = _room->loadFullLevel(assetRoot, kLevelDirs[idx % kLevelCount], levelErr);
     if (!_levelReady) NSLog(@"[TotalMayhem] level %d failed: %s", idx, levelErr.c_str());
+    {   // the level's own subtitle table (xlsStrings/levelnew_01.map + _EN.data) joins MAIN
+        bdae::StringTable lt; std::string se;
+        std::string lv = kLevelDirs[idx % kLevelCount];
+        if (lt.load(assetRoot + "/xlsStrings/" + lv + ".map", assetRoot + "/xlsStrings/" + lv + "_EN.data", se)) {
+            _strings.merge(lt);
+            NSLog(@"[TotalMayhem] level strings: %zu subtitle lines", lt.decodedBinary);
+        } else NSLog(@"[TotalMayhem] level strings: %s", se.c_str());
+    }
     _levelVBs = [NSMutableArray new];
     _levelIBs = [NSMutableArray new];
     _levelTex = [NSMutableArray new];
