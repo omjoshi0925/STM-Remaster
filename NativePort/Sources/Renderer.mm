@@ -799,35 +799,7 @@ fragment half4 frag(Out i                   [[stage_in]],
             NSLog(@"[TotalMayhem] trigger '%s'%s%s", se.tag.c_str(),
                   se.cinematic.empty() ? "" : " -> ", se.cinematic.c_str());
             if (se.tag == "sense" || se.tag == "3thugs") [_audio playEvent:"SFX_SPIDER_SENSE_IN"];
-            if (!se.cinematic.empty() && !_cineActive) {
-                std::string ce;
-                std::string path = _assetRootStr + "/" + kLevelDirs[_flow.levelIndex % kLevelCount] + "/" + se.cinematic;
-                if (_cine.load(path, ce) && _cine.durationMs > 0) {
-                    _cineActive = YES; _cineStartMs = nowMs; _cineLastMs = 0; _cineName = se.tag;
-                    _cineClip = nullptr; _cineClipName.clear();
-                    _cineCamActive = NO; _qteOpen = NO; _qteNextIndex = 0; _cineHeroActive = NO;
-                    [self bindCineActors];
-                    // the authored camera comes from PlayDAECamera on the Basic thread
-                    // (camera_lv1_start.bdae ...), which also names the script to chain
-                    // into afterwards and whether this script ends the level
-                    _cineFarPlane = 0; _cineNext = -1; _cineLevelEnd = NO;
-                    bdae::Cinematic::CameraRequest camReq;
-                    if (_cine.cameraRequest(camReq)) {
-                        std::string f = camReq.file;
-                        while (f.rfind("./", 0) == 0 || f.rfind("../", 0) == 0) f = f.substr(f.find('/') + 1);
-                        std::string ce2;
-                        if (_cineCam.load(bdae::resolveCaseInsensitive(_assetRootStr + "/" + kLevelDirs[_flow.levelIndex % kLevelCount] + "/" + f), ce2)) {
-                            _cineCamActive = YES; _cineCamStartMs = camReq.stampMs;
-                            NSLog(@"[TotalMayhem] cinematic camera %s (%.1f s), far %.0f, next %d%s", f.c_str(),
-                                  _cineCam.durationMs / 1000.0, camReq.farPlane, camReq.nextCinematic, camReq.levelEnd ? ", level end" : "");
-                        } else NSLog(@"[TotalMayhem] cinematic camera %s: %s", f.c_str(), ce2.c_str());
-                        _cineFarPlane = camReq.farPlane; _cineNext = camReq.nextCinematic; _cineLevelEnd = camReq.levelEnd;
-                    }
-                    _flow.phase = bdae::GameFlow::CINEMATIC;
-                    NSLog(@"[TotalMayhem] cinematic '%s': %zu threads, %.1f s", se.tag.c_str(),
-                          _cine.threads.size(), _cine.durationMs / 1000.0);
-                } else if (!ce.empty()) NSLog(@"[TotalMayhem] cinematic %s: %s", se.cinematic.c_str(), ce.c_str());
-            }
+            if (!se.cinematic.empty() && !_cineActive) [self startCinematic:se.cinematic tag:se.tag now:nowMs];
         }
     }
     if (_cineActive) {
@@ -1431,8 +1403,50 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
 // ---------------------------------------------------------------- QTE ---
 // StartQTE names a success and a fail cinematic by id; branch by loading the
 // chosen script and running it in place of the current one.
+// Start a .cff (path relative to the level directory): triggers, QTE branches
+// and ^ID^Cinematic^Next chains all come through here.
+- (BOOL)startCinematic:(const std::string &)relPath tag:(const std::string &)tag now:(uint32_t)nowMs {
+    std::string ce;
+    const std::string levelDir = kLevelDirs[_flow.levelIndex % kLevelCount];
+    std::string path = _assetRootStr + "/" + levelDir + "/" + relPath;
+    bdae::Cinematic next;
+    if (!next.load(path, ce) || next.durationMs == 0) {
+        if (!ce.empty()) NSLog(@"[TotalMayhem] cinematic %s: %s", relPath.c_str(), ce.c_str());
+        return NO;
+    }
+    // actors of the script being replaced (a QTE branch mid-script) settle on their last frame
+    for (auto &ap : _cineActors) if (ap->live) { ap->actor.poseAt(ap->actor.startMs + ap->actor.durationMs()); ap->live = false; }
+    _cine = next;
+    _cineActive = YES; _cineStartMs = nowMs; _cineLastMs = 0; _cineName = tag;
+    _cineClip = nullptr; _cineClipName.clear();
+    _cineCamActive = NO; _qteOpen = NO; _qteNextIndex = 0; _cineHeroActive = NO; _cineHeroFile.clear();
+    _cineHidden.clear();
+    [self bindCineActors];
+    // the authored camera comes from PlayDAECamera on the Basic thread
+    // (camera_lv1_start.bdae ...), which also names the script to chain into
+    // afterwards and whether this script ends the level
+    _cineFarPlane = 0; _cineNext = -1; _cineLevelEnd = NO;
+    bdae::Cinematic::CameraRequest camReq;
+    if (_cine.cameraRequest(camReq)) {
+        std::string f = camReq.file;
+        while (f.rfind("./", 0) == 0 || f.rfind("../", 0) == 0) f = f.substr(f.find('/') + 1);
+        std::string ce2;
+        if (_cineCam.load(bdae::resolveCaseInsensitive(_assetRootStr + "/" + levelDir + "/" + f), ce2)) {
+            _cineCamActive = YES; _cineCamStartMs = camReq.stampMs;
+            NSLog(@"[TotalMayhem] cinematic camera %s (%.1f s), far %.0f, next %d%s", f.c_str(),
+                  _cineCam.durationMs / 1000.0, camReq.farPlane, camReq.nextCinematic, camReq.levelEnd ? ", level end" : "");
+        } else NSLog(@"[TotalMayhem] cinematic camera %s: %s", f.c_str(), ce2.c_str());
+        _cineFarPlane = camReq.farPlane; _cineNext = camReq.nextCinematic; _cineLevelEnd = camReq.levelEnd;
+    }
+    _flow.phase = bdae::GameFlow::CINEMATIC;
+    NSLog(@"[TotalMayhem] cinematic '%s' (%s): %zu threads, %.1f s", tag.c_str(), relPath.c_str(),
+          _cine.threads.size(), _cine.durationMs / 1000.0);
+    return YES;
+}
+
 // A script ends (naturally or skipped): Spider-Man resumes where his authored
-// animation left him, the actors settle on their last frame, play resumes.
+// animation left him, the actors settle on their last frame, then the script
+// chains into ^ID^Cinematic^Next, ends the level, or hands back to play.
 - (void)finishCinematic:(uint32_t)nowMs skipped:(BOOL)skipped {
     if (_cineHeroActive && _cineHero && _actor && !_cineHero->clips.empty()) {
         const Clip &c0 = _cineHero->clips[0];
@@ -1446,8 +1460,21 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
     }
     for (auto &ap : _cineActors) if (ap->live) { ap->actor.poseAt(ap->actor.startMs + ap->actor.durationMs()); ap->live = false; }
     _cineActive = NO; _cineHidden.clear(); _cineHeroActive = NO; _cineHeroFile.clear(); _cineCamActive = NO; _qteOpen = NO;
-    _flow.startPlay(nowMs);
     NSLog(@"[TotalMayhem] cinematic '%s' %s", _cineName.c_str(), skipped ? "skipped" : "finished");
+    const int next = _cineNext; const BOOL levelEnd = _cineLevelEnd;
+    _cineNext = -1; _cineLevelEnd = NO;
+    if (levelEnd) {
+        _flow.completeLevel(nowMs);       // the authored level end (PlayDAECamera "level end")
+        NSLog(@"[TotalMayhem] level %d complete (authored end)", _flow.levelIndex + 1);
+        return;
+    }
+    if (next >= 0 && _room) {
+        auto it = _room->cinematicById.find(next);
+        if (it != _room->cinematicById.end() && !it->second.empty() &&
+            [self startCinematic:it->second tag:("next_" + std::to_string(next)) now:nowMs]) return;
+        NSLog(@"[TotalMayhem] chained cinematic %d has no script", next);
+    }
+    _flow.startPlay(nowMs);
 }
 
 - (void)resolveQte:(BOOL)success now:(uint32_t)nowMs {
@@ -1460,15 +1487,8 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
         NSLog(@"[TotalMayhem] QTE %d: branch %d has no script", _qte.id, target);
         return;
     }
-    std::string ce;
-    std::string path = _assetRootStr + "/" + kLevelDirs[_flow.levelIndex % kLevelCount] + "/" + it->second;
-    bdae::Cinematic next;
-    if (next.load(path, ce)) {
-        _cine = next;
-        _cineStartMs = nowMs; _cineLastMs = 0; _cineClip = nullptr; _cineClipName.clear();
-        _cineCamActive = NO; _qteNextIndex = 0;
-        NSLog(@"[TotalMayhem] QTE %d %s -> cinematic %d (%.1f s)", _qte.id, success ? "success" : "fail", target, _cine.durationMs / 1000.0);
-    } else NSLog(@"[TotalMayhem] QTE branch %s: %s", it->second.c_str(), ce.c_str());
+    NSLog(@"[TotalMayhem] QTE %d %s -> cinematic %d", _qte.id, success ? "success" : "fail", target);
+    [self startCinematic:it->second tag:(std::string("qte_") + std::to_string(target)) now:nowMs];
 }
 
 // ------------------------------------------------------------ boot videos ---

@@ -54,6 +54,8 @@ struct GameFlow {
 
     void beginLevel(const LevelRoom& lvl, int index, uint32_t nowMs);
     void startPlay(uint32_t nowMs) { phase = PLAYING; phaseStartMs = nowMs; }
+    // The authored level end: a PlayDAECamera flagged "level end" has finished.
+    void completeLevel(uint32_t nowMs) { phase = COMPLETE; phaseStartMs = nowMs; }
     void showTitle(uint32_t nowMs) { phase = TITLE; phaseStartMs = nowMs; }
     // Marks newly reached checkpoints, moves the respawn point; returns true
     // if this update completed the level.
