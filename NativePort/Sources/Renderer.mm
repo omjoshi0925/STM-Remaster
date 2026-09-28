@@ -434,6 +434,9 @@ fragment half4 frag(Out i                   [[stage_in]],
     Vec3 _cineHeroAnchor;                  // feet of the world-space animation this frame
     BOOL _cineCamActive;
     uint32_t _cineCamStartMs;
+    float _cineFarPlane;           // PlayDAECamera farPlane (recorded; our far plane already exceeds it)
+    int _cineNext;                 // ^ID^Cinematic^Next to chain into, or -1
+    BOOL _cineLevelEnd;            // PlayDAECamera "level end": the level completes when this script ends
     BOOL _qteOpen;                 // a StartQTE window is live
     uint32_t _qteOpenedMs;
     bdae::Cinematic::Qte _qte;
@@ -804,16 +807,21 @@ fragment half4 frag(Out i                   [[stage_in]],
                     _cineClip = nullptr; _cineClipName.clear();
                     _cineCamActive = NO; _qteOpen = NO; _qteNextIndex = 0; _cineHeroActive = NO;
                     [self bindCineActors];
-                    for (const bdae::Cinematic::DaeAnim &da : _cine.daeAnims()) {
-                        std::string f = da.file; for (char &ch : f) ch = (char)tolower(ch);
-                        if (f.find("camera") == std::string::npos) continue;
+                    // the authored camera comes from PlayDAECamera on the Basic thread
+                    // (camera_lv1_start.bdae ...), which also names the script to chain
+                    // into afterwards and whether this script ends the level
+                    _cineFarPlane = 0; _cineNext = -1; _cineLevelEnd = NO;
+                    bdae::Cinematic::CameraRequest camReq;
+                    if (_cine.cameraRequest(camReq)) {
+                        std::string f = camReq.file;
                         while (f.rfind("./", 0) == 0 || f.rfind("../", 0) == 0) f = f.substr(f.find('/') + 1);
                         std::string ce2;
                         if (_cineCam.load(bdae::resolveCaseInsensitive(_assetRootStr + "/" + kLevelDirs[_flow.levelIndex % kLevelCount] + "/" + f), ce2)) {
-                            _cineCamActive = YES; _cineCamStartMs = da.stampMs;
-                            NSLog(@"[TotalMayhem] cinematic camera track %s (%.1f s)", f.c_str(), _cineCam.durationMs / 1000.0);
-                        }
-                        break;
+                            _cineCamActive = YES; _cineCamStartMs = camReq.stampMs;
+                            NSLog(@"[TotalMayhem] cinematic camera %s (%.1f s), far %.0f, next %d%s", f.c_str(),
+                                  _cineCam.durationMs / 1000.0, camReq.farPlane, camReq.nextCinematic, camReq.levelEnd ? ", level end" : "");
+                        } else NSLog(@"[TotalMayhem] cinematic camera %s: %s", f.c_str(), ce2.c_str());
+                        _cineFarPlane = camReq.farPlane; _cineNext = camReq.nextCinematic; _cineLevelEnd = camReq.levelEnd;
                     }
                     _flow.phase = bdae::GameFlow::CINEMATIC;
                     NSLog(@"[TotalMayhem] cinematic '%s': %zu threads, %.1f s", se.tag.c_str(),
@@ -887,23 +895,14 @@ fragment half4 frag(Out i                   [[stage_in]],
         // cinematic actors bound by this script follow its clock (first frame
         // held until their PlayDAEAnim stamp, last frame held after)
         for (auto &ap : _cineActors) if (ap->live) ap->actor.poseAt(t);
-        if (t > _cine.durationMs + 400) {
-            if (_cineHeroActive && _cineHero && _actor && !_cineHero->clips.empty()) {
-                // gameplay resumes where the authored animation left Spider-Man
-                const Clip &c0 = _cineHero->clips[0];
-                uint32_t endT = c0.endMs > c0.startMs ? c0.endMs - 1 : c0.startMs;
-                Vec3 before = skinnedAnchor(*_cineHero, endT > c0.startMs + 400 ? endT - 400 : c0.startMs);
-                Vec3 feet = skinnedAnchor(*_cineHero, endT);
-                float dx = feet.x - before.x, dy = feet.y - before.y;
-                float yaw = (dx * dx + dy * dy > 20.0f * 20.0f) ? atan2f(dy, dx) : _actor->yaw();
-                _actor->spawnAt(feet, yaw);
-                NSLog(@"[TotalMayhem] cinematic hero resumes at (%.0f, %.0f, %.0f)", feet.x, feet.y, feet.z);
-            }
-            for (auto &ap : _cineActors) if (ap->live) { ap->actor.poseAt(ap->actor.startMs + ap->actor.durationMs()); ap->live = false; }
-            _cineActive = NO; _cineHidden.clear(); _cineHeroActive = NO; _cineHeroFile.clear();
-            _flow.startPlay(nowMs);
-            NSLog(@"[TotalMayhem] cinematic '%s' finished", _cineName.c_str());
-        }
+        // the script runs until its last stamp, its camera track and Spider-Man's
+        // own animation have all played out (the prologue's last command is at
+        // 41.8 s but its camera and hero files run 53 s)
+        uint32_t endMs = _cine.durationMs;
+        if (_cineCamActive) endMs = MAX(endMs, _cineCamStartMs + _cineCam.durationMs);
+        if (_cineHeroActive && _cineHero && !_cineHero->clips.empty())
+            endMs = MAX(endMs, (_cineHeroStartMs - _cineStartMs) + (_cineHero->clips[0].endMs - _cineHero->clips[0].startMs));
+        if (t > endMs + 400) [self finishCinematic:nowMs skipped:NO];
     }
     if (_flow.phase == bdae::GameFlow::COMPLETE && _scoreMusicMs && nowMs >= _scoreMusicMs) {
         _scoreMusicMs = 0; [_audio playMusic:"M_SCORE_SCREEN" looping:YES];
@@ -1432,6 +1431,25 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
 // ---------------------------------------------------------------- QTE ---
 // StartQTE names a success and a fail cinematic by id; branch by loading the
 // chosen script and running it in place of the current one.
+// A script ends (naturally or skipped): Spider-Man resumes where his authored
+// animation left him, the actors settle on their last frame, play resumes.
+- (void)finishCinematic:(uint32_t)nowMs skipped:(BOOL)skipped {
+    if (_cineHeroActive && _cineHero && _actor && !_cineHero->clips.empty()) {
+        const Clip &c0 = _cineHero->clips[0];
+        uint32_t endT = c0.endMs > c0.startMs ? c0.endMs - 1 : c0.startMs;
+        Vec3 before = skinnedAnchor(*_cineHero, endT > c0.startMs + 400 ? endT - 400 : c0.startMs);
+        Vec3 feet = skinnedAnchor(*_cineHero, endT);
+        float dx = feet.x - before.x, dy = feet.y - before.y;
+        float yaw = (dx * dx + dy * dy > 20.0f * 20.0f) ? atan2f(dy, dx) : _actor->yaw();
+        _actor->spawnAt(feet, yaw);
+        NSLog(@"[TotalMayhem] cinematic hero resumes at (%.0f, %.0f, %.0f)", feet.x, feet.y, feet.z);
+    }
+    for (auto &ap : _cineActors) if (ap->live) { ap->actor.poseAt(ap->actor.startMs + ap->actor.durationMs()); ap->live = false; }
+    _cineActive = NO; _cineHidden.clear(); _cineHeroActive = NO; _cineHeroFile.clear(); _cineCamActive = NO; _qteOpen = NO;
+    _flow.startPlay(nowMs);
+    NSLog(@"[TotalMayhem] cinematic '%s' %s", _cineName.c_str(), skipped ? "skipped" : "finished");
+}
+
 - (void)resolveQte:(BOOL)success now:(uint32_t)nowMs {
     _qteOpen = NO;
     int target = success ? _qte.successCinematic : _qte.failCinematic;
@@ -2127,8 +2145,7 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
         }
         if (_flow.phase == bdae::GameFlow::CINEMATIC) {
             if (_qteOpen) { [self resolveQte:YES now:nowMs]; return; }   // tap inside the window = success
-            _cineActive = NO;   // otherwise tap = skip the cinematic
-            _flow.startPlay(nowMs);
+            [self finishCinematic:nowMs skipped:YES];   // otherwise tap = skip the cinematic
             return;
         }
         if (_flow.phase == bdae::GameFlow::COMIC) {
