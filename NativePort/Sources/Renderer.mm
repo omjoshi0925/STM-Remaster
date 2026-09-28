@@ -420,6 +420,7 @@ fragment half4 frag(Out i                   [[stage_in]],
     std::string _cineHeroFile;
     uint32_t _cineHeroStartMs;
     BOOL _cineHeroActive;
+    Vec3 _cineHeroAnchor;                  // feet of the world-space animation this frame
     BOOL _cineCamActive;
     uint32_t _cineCamStartMs;
     BOOL _qteOpen;                 // a StartQTE window is live
@@ -868,6 +869,17 @@ fragment half4 frag(Out i                   [[stage_in]],
             }
         }
         if (t > _cine.durationMs + 400) {
+            if (_cineHeroActive && _cineHero && _actor && !_cineHero->clips.empty()) {
+                // gameplay resumes where the authored animation left Spider-Man
+                const Clip &c0 = _cineHero->clips[0];
+                uint32_t endT = c0.endMs > c0.startMs ? c0.endMs - 1 : c0.startMs;
+                Vec3 before = skinnedAnchor(*_cineHero, endT > c0.startMs + 400 ? endT - 400 : c0.startMs);
+                Vec3 feet = skinnedAnchor(*_cineHero, endT);
+                float dx = feet.x - before.x, dy = feet.y - before.y;
+                float yaw = (dx * dx + dy * dy > 20.0f * 20.0f) ? atan2f(dy, dx) : _actor->yaw();
+                _actor->spawnAt(feet, yaw);
+                NSLog(@"[TotalMayhem] cinematic hero resumes at (%.0f, %.0f, %.0f)", feet.x, feet.y, feet.z);
+            }
             _cineActive = NO; _cineHidden.clear(); _cineHeroActive = NO; _cineHeroFile.clear();
             _flow.startPlay(nowMs);
             NSLog(@"[TotalMayhem] cinematic '%s' finished", _cineName.c_str());
@@ -967,7 +979,10 @@ fragment half4 frag(Out i                   [[stage_in]],
             const Clip &c0 = _cineHero->clips[0];
             uint32_t len = c0.endMs > c0.startMs ? c0.endMs - c0.startMs : 1;
             uint32_t local = nowMs >= _cineHeroStartMs ? nowMs - _cineHeroStartMs : 0;
-            _cineHero->poseAtTime(c0.startMs + (local < len ? local : len - 1));   // play once, hold the last frame
+            // The per-cinematic files are authored in world space (spiderman_lv1_start
+            // swings Bip01 from (15422, -12504, 1970) down to the spawn), so the pose
+            // is drawn with an identity model matrix and the camera follows its feet.
+            _cineHeroAnchor = skinnedAnchor(*_cineHero, c0.startMs + (local < len ? local : len - 1));   // poses the model; play once, hold the last frame
         } else if (_cineActive && _cineClip) {
             uint32_t len = _cineClip->endMs > _cineClip->startMs ? _cineClip->endMs - _cineClip->startMs : 1;
             _hero->poseAtTime(_cineClip->startMs + (nowMs - _cineClipStartMs) % len);
@@ -1018,6 +1033,8 @@ fragment half4 frag(Out i                   [[stage_in]],
     [enc setFragmentSamplerState:_sampler atIndex:0];
 
     Vec3 p = _actor ? _actor->position() : Vec3{0, 0, 0};
+    const BOOL heroInWorldAnim = _cineActive && _cineHeroActive && _cineHero != nullptr;
+    if (heroInWorldAnim) p = _cineHeroAnchor;
     float aspect = (float)view.drawableSize.width / fmaxf(1.0f, (float)view.drawableSize.height);
     simd_float3 target = (simd_float3){p.x, p.y, p.z + 95.0f};
     simd_float3 eye = (simd_float3){
@@ -1119,8 +1136,9 @@ fragment half4 frag(Out i                   [[stage_in]],
 
         Uniforms u;
         u.vp = vp;
-        u.model = simd_mul(MTranslate(p.x, p.y, p.z),
-                           MRotZ((_actor ? _actor->yaw() : 0.0f) + kModelYawOffset));
+        u.model = heroInWorldAnim ? MIdent()
+                                  : simd_mul(MTranslate(p.x, p.y, p.z),
+                                             MRotZ((_actor ? _actor->yaw() : 0.0f) + kModelYawOffset));
         u.tint = (simd_float4){1, 1, 1, 1};
         u.misc = (simd_float4){_heroTex ? 1.0f : 0.0f, 0, 0, 0};
         [enc setRenderPipelineState:_skinPipe];
