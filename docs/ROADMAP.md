@@ -15,14 +15,18 @@ Ordered by leverage; each item lists where its data/reference lives.
    `WebGrabPoint` nodes, Player state machine symbols.
 5. **Camera areas** - `CameraArea` nodes (authored camera volumes; the
    current orbit camera is not original).
-6. **Script commands still unhonoured** - after Milestone 21 (actors,
-   PlayDAECamera, chaining, level end, subtitles) the remaining .cff verbs
-   by count: InterfaceControl 53, IfObjectDestroyed 20, SetSlowMotion 18,
-   DisableTrigger 18, Tutorial 14, StartCinematic 13, IfEnemyDead 9,
-   EnableTrigger 7, PlayEffect 7, Transport 6, ShowHealth 6, Save 6,
-   ShakeCamera 5. StartCinematic and the If* gates decide when the scripted
-   set pieces fire, so they come first; Tutorial pairs with Tutorial.map
-   strings. Reference: `CCinematicThread` in ENGINE_MAP.md.
+6. **Script commands still unhonoured** - after Milestone 22 (the authored
+   trigger graph, gates, hand-overs, Save, GetDamage, KillObject, ShowHealth,
+   LevelEnd, InterfaceControl, ShakeCamera, Tutorial, the epilogue) what
+   remains: boss phase scripts (^ToStage2/3^Cinematic on Boss nodes, gated
+   IfHealthTo 66/33 - small, next), SetSlowMotion (parsed), StartProgress /
+   StopProgress and StopAction (boss runs between WayPoints), StartSlide
+   (rope slides), Transport, Physics, Throwing, PlayEffect. Reference:
+   `CCinematicThread` in ENGINE_MAP.md; `Tools/script_graph.py` shows where
+   each sits in the level.
+6. **ControlEnable scripts during play** - tutorial hints and short beats
+   author ControlEnable=true; running them without pausing play needs the
+   script clock decoupled from the CINEMATIC phase.
 7. **Subtitle portraits** - $MessageFace 3/4/5/9 (girl, cop, Sandman...) need
    their portrait art; interface_2.tga and the GS screens are where to look.
 7. **Menus** - `mainmenu.tga` + GS_* screen definitions + `interface_2.tga`.
