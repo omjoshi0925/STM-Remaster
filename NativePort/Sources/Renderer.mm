@@ -437,6 +437,13 @@ fragment half4 frag(Out i                   [[stage_in]],
     float _cineFarPlane;           // PlayDAECamera farPlane (recorded; our far plane already exceeds it)
     int _cineNext;                 // ^ID^Cinematic^Next to chain into, or -1
     BOOL _cineLevelEnd;            // PlayDAECamera "level end": the level completes when this script ends
+    // Milestone 22: the authored script graph
+    std::map<std::string, bdae::Cinematic> _cineCache;   // parsed scripts by level-relative path
+    std::set<std::string> _cineBad;                      // paths that failed to load (reported once)
+    std::vector<uint32_t> _triggerCooldownMs;            // per trigger: no re-run of a While* script before this
+    int _cinePendingStart;         // StartCinematic seen this tick: hand over after the tick, or -1
+    BOOL _epiloguePlayed;          // the SpiderMan node's ^EndGame^Cinematic has run
+    BOOL _cineCompleteOnEnd;       // the running script is the epilogue: complete the level when it ends
     BOOL _qteOpen;                 // a StartQTE window is live
     uint32_t _qteOpenedMs;
     bdae::Cinematic::Qte _qte;
@@ -794,12 +801,23 @@ fragment half4 frag(Out i                   [[stage_in]],
             [_audio playEvent:hu.c_str()];
         }
     if (playing) {
-        // the original level script: named volumes, most naming a .cff cinematic
+        // the authored script graph: enabled trigger volumes report enter/exit
+        // edges and While* frames; each names a Cinematic node whose script runs
+        // once its If* gates hold. Running it consumes AutoDisabled triggers.
+        if (_triggerCooldownMs.size() != _script.enabled.size()) _triggerCooldownMs.assign(_script.enabled.size(), 0);
         for (const bdae::ScriptEvent &se : _script.update(heroPos)) {
-            NSLog(@"[TotalMayhem] trigger '%s'%s%s", se.tag.c_str(),
-                  se.cinematic.empty() ? "" : " -> ", se.cinematic.c_str());
-            if (se.tag == "sense" || se.tag == "3thugs") [_audio playEvent:"SFX_SPIDER_SENSE_IN"];
-            if (!se.cinematic.empty() && !_cineActive) [self startCinematic:se.cinematic tag:se.tag now:nowMs];
+            if (se.kind == bdae::ScriptEvent::ENTER) {
+                NSLog(@"[TotalMayhem] trigger '%s'%s%s", se.tag.c_str(), se.cinematic.empty() ? "" : " -> ", se.cinematic.c_str());
+                if (se.tag == "sense" || se.tag == "3thugs") [_audio playEvent:"SFX_SPIDER_SENSE_IN"];
+            }
+            if (se.cinematic.empty() || _cineActive) continue;
+            if (se.index >= 0 && (size_t)se.index < _triggerCooldownMs.size() && nowMs < _triggerCooldownMs[(size_t)se.index]) continue;
+            const bdae::Cinematic *sc = [self scriptAt:se.cinematic];
+            if (!sc || ![self conditionsHold:*sc]) continue;      // gated: the trigger stays armed
+            if ([self startCinematic:se.cinematic tag:se.tag now:nowMs]) {
+                _script.consume(se.index);
+                if (se.index >= 0 && (size_t)se.index < _triggerCooldownMs.size()) _triggerCooldownMs[(size_t)se.index] = nowMs + 1500;
+            }
         }
     }
     if (_cineActive) {
@@ -1429,15 +1447,42 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
 // chosen script and running it in place of the current one.
 // Start a .cff (path relative to the level directory): triggers, QTE branches
 // and ^ID^Cinematic^Next chains all come through here.
-- (BOOL)startCinematic:(const std::string &)relPath tag:(const std::string &)tag now:(uint32_t)nowMs {
-    std::string ce;
-    const std::string levelDir = kLevelDirs[_flow.levelIndex % kLevelCount];
-    std::string path = _assetRootStr + "/" + levelDir + "/" + relPath;
-    bdae::Cinematic next;
-    if (!next.load(path, ce) || next.durationMs == 0) {
-        if (!ce.empty()) NSLog(@"[TotalMayhem] cinematic %s: %s", relPath.c_str(), ce.c_str());
-        return NO;
+// Parsed scripts by level-relative path (they are read every frame for While*
+// triggers' gates, so parse once).
+- (const bdae::Cinematic *)scriptAt:(const std::string &)relPath {
+    auto it = _cineCache.find(relPath);
+    if (it != _cineCache.end()) return &it->second;
+    if (_cineBad.count(relPath)) return nullptr;
+    bdae::Cinematic c; std::string ce;
+    std::string path = _assetRootStr + "/" + kLevelDirs[_flow.levelIndex % kLevelCount] + "/" + relPath;
+    if (!c.load(path, ce)) { NSLog(@"[TotalMayhem] cinematic %s: %s", relPath.c_str(), ce.c_str()); _cineBad.insert(relPath); return nullptr; }
+    return &(_cineCache[relPath] = c);
+}
+
+// If* gates: IfObjectDestroyed / IfEnemyDead hold when the named prop is gone
+// or the named enemy is down; IfHealthTo when the enemy is at or below the
+// percentage. An id the world never placed cannot block a level, so it holds.
+- (BOOL)conditionsHold:(const bdae::Cinematic &)c {
+    for (const bdae::Cinematic::Condition &cd : c.conditions()) {
+        bool known = false, ok = false;
+        for (size_t i = 0; i < _foes.size() && i < _foeNodeId.size(); ++i) {
+            if (_foeNodeId[i] != cd.id) continue;
+            known = true;
+            const bdae::EnemyActor &f = _foes[i];
+            if (cd.kind == bdae::Cinematic::Condition::HEALTH_AT_MOST)
+                ok = !f.alive() || (f.stats.hp > 0 && f.hp / f.stats.hp * 100.0f <= cd.value);
+            else ok = !f.alive();
+        }
+        if (!known) for (const PropInst &pp : _props) if (pp.nodeId == cd.id) { known = true; ok = !pp.alive; }
+        if (known && !ok) return NO;
     }
+    return YES;
+}
+
+- (BOOL)startCinematic:(const std::string &)relPath tag:(const std::string &)tag now:(uint32_t)nowMs {
+    const bdae::Cinematic *loaded = [self scriptAt:relPath];
+    if (!loaded) return NO;
+    bdae::Cinematic next = *loaded;   // zero-length control beats run too (Milestone 22)
     // actors of the script being replaced (a QTE branch mid-script) settle on their last frame
     for (auto &ap : _cineActors) if (ap->live) { ap->actor.poseAt(ap->actor.startMs + ap->actor.durationMs()); ap->live = false; }
     _cine = next;
@@ -2116,6 +2161,7 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
     _cineActive = NO;
     _foeSounds.clear(); _foeBarked.clear(); _foeStat.clear(); _foeNodeId.clear(); _bossStat.clear(); _bossIndex = -1;
     _cineActors.clear(); _actorObjects.clear(); _actorVBs = nil; _actorIBs = nil; _actorTex = nil; _actorCounts.clear(); _actorBatchMesh.clear();
+    _cineCache.clear(); _cineBad.clear(); _triggerCooldownMs.clear(); _cinePendingStart = -1; _epiloguePlayed = NO; _cineCompleteOnEnd = NO;
     _winPlayed = NO; _musicAction = NO; _musicSwitchMs = 0; _scoreMusicMs = 0;
     _npcBones = nil;
     _room = std::make_unique<LevelRoom>();
@@ -2208,6 +2254,11 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
             _flow.startPlay(nowMs);
             // Level 1 is the downtown set; Level 2 uses its combat mix.
             [_audio playMusic:(_flow.levelIndex == 0 ? "M_DOWNTOWN_CALM" : "M_DOWNTOWN_MIXED") looping:YES];
+            // the SpiderMan node's ^Link^Cinematic opens the level (Level 1: the prologue)
+            if (_room && _room->startCinematic >= 0) {
+                auto it = _room->cinematicById.find(_room->startCinematic);
+                if (it != _room->cinematicById.end()) [self startCinematic:it->second tag:"level_start" now:nowMs];
+            }
         } else if (_flow.phase == bdae::GameFlow::DEAD) {
             _heroHP = 100.0f;
             // the original recovers at its RestorePoint markers; fall back to
