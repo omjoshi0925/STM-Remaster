@@ -444,6 +444,10 @@ fragment half4 frag(Out i                   [[stage_in]],
     int _cinePendingStart;         // StartCinematic seen this tick: hand over after the tick, or -1
     BOOL _epiloguePlayed;          // the SpiderMan node's ^EndGame^Cinematic has run
     BOOL _cineCompleteOnEnd;       // the running script is the epilogue: complete the level when it ends
+    float _blackAlpha;             // InterfaceControl BlackEnable fade, 0..1
+    uint32_t _shakeUntilMs;        // ShakeCamera: live while nowMs < this
+    float _shakeAmp;               // ShakeCamera MaxOff in world units
+    uint32_t _shakeLenMs;
     BOOL _qteOpen;                 // a StartQTE window is live
     uint32_t _qteOpenedMs;
     bdae::Cinematic::Qte _qte;
@@ -1069,6 +1073,15 @@ fragment half4 frag(Out i                   [[stage_in]],
                                 cc.target.z - cc.dir.z * cc.distance};
         }
     }
+    if (_shakeUntilMs && (uint32_t)(now * 1000.0) < _shakeUntilMs && _shakeLenMs) {
+        // ShakeCamera: a decaying jitter from a per-frame hash, same offset on eye and target
+        float left = (float)(_shakeUntilMs - (uint32_t)(now * 1000.0)) / (float)_shakeLenMs;
+        uint32_t h = (uint32_t)_frameIdx * 2654435761u;
+        float ox = (((h >> 3) & 1023) / 511.5f - 1.0f) * _shakeAmp * left;
+        float oy = (((h >> 13) & 1023) / 511.5f - 1.0f) * _shakeAmp * left;
+        float oz = (((h >> 23) & 511) / 255.5f - 1.0f) * _shakeAmp * left;
+        eye.x += ox; eye.y += oy; eye.z += oz; target.x += ox; target.y += oy; target.z += oz;
+    }
     simd_float4x4 vp = simd_mul(MPerspective(58.0f * (float)M_PI / 180.0f, aspect, 10.0f, 120000.0f),
                                 MLookAt(eye, target, (simd_float3){0, 0, 1}));
 
@@ -1237,11 +1250,23 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
     };
 
     // ---- flow overlays (video/title/death/complete) and the comic page
+    bdae::Cinematic::Interface cineUi;
+    if (_flow.phase == bdae::GameFlow::CINEMATIC && _cineActive) cineUi = _cine.interfaceAt(nowMs - _cineStartMs);
+    // InterfaceControl BlackEnable fades the screen to black and back (250 ms)
+    {
+        float want = (_flow.phase == bdae::GameFlow::CINEMATIC && _cineActive && cineUi.black) ? 1.0f : 0.0f;
+        _blackAlpha += (want - _blackAlpha) * fminf(1.0f, (float)(1.0 / 60.0) * 4.0f);
+        if (fabsf(want - _blackAlpha) < 0.02f) _blackAlpha = want;
+    }
     if (_flow.phase == bdae::GameFlow::CINEMATIC) {
-        // letterbox bars instead of a dim: the scene is the point
+        // letterbox bars instead of a dim: the scene is the point. A script that
+        // keeps ControlEnable on (tutorial hints, short beats) shows no bars.
         useTex(_white);
-        quad(0, 0, W, H * 0.11f, kFull, 0, 0, 0, 255);
-        quad(0, H * 0.89f, W, H * 0.11f, kFull, 0, 0, 0, 255);
+        if (!cineUi.control) {
+            quad(0, 0, W, H * 0.11f, kFull, 0, 0, 0, 255);
+            quad(0, H * 0.89f, W, H * 0.11f, kFull, 0, 0, 0, 255);
+        }
+        if (_blackAlpha > 0.01f) quad(0, 0, W, H, kFull, 0, 0, 0, (uint8_t)(255.0f * _blackAlpha));
         // ShowMessage subtitles: the script's line, from the level's own string
         // table, in the original font inside the lower bar; Spider-Man's lines
         // (face 1) carry his HUD portrait
@@ -1266,6 +1291,9 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
                 for (const std::string &r : rows) { drawText(r.c_str(), W * 0.5f, y, th, 1, 255); y += th + 4 * sc; }
             }
         }
+        // SKIP in the original font when the script allows it (the old SKIP case
+        // below sat in the non-cinematic branch and never drew during a script)
+        if (cineUi.skip) drawText("SKIP", W - 30 * sc, 24 * sc, 44 * sc, 2, 255);
     } else if (_flow.phase != bdae::GameFlow::PLAYING) {
         useTex(_white);
         quad(0, 0, W, H, kFull, 6, 6, 10, _flow.phase == bdae::GameFlow::COMIC ? 255 : 225);
@@ -1287,7 +1315,7 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
                 case bdae::GameFlow::VIDEO:
                 case bdae::GameFlow::COMIC:
                 case bdae::GameFlow::CINEMATIC:
-                    drawText("SKIP", W - 30 * sc, 24 * sc, 44 * sc, 2, 255); break;
+                    break;   // drawn in the cinematic branch above
                 case bdae::GameFlow::TITLE: {
                     float y = H * 0.36f;
                     size_t p = 0;
@@ -1485,6 +1513,11 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
             if (_foeNodeId[i] == id && _foes[i].alive()) { _bossIndex = (int)i; NSLog(@"[TotalMayhem] script shows health of %d", id); }
     for (const std::string &sk : c.unlocksBetween(t0, t1)) NSLog(@"[TotalMayhem] script unlocks skill '%s' (skills not implemented)", sk.c_str());
     if (c.levelEndBetween(t0, t1)) _cineLevelEnd = YES;
+    for (const bdae::Cinematic::Shake &sh : c.shakesBetween(t0, t1)) {
+        _shakeAmp = sh.maxOff * 6.0f;                          // authored in the original's camera units; scaled to ours
+        _shakeLenMs = (uint32_t)(sh.frames * 1000 / 30);       // ShakeFrame at the original's 30 fps
+        _shakeUntilMs = nowMs + _shakeLenMs;
+    }
     for (int id : c.startsBetween(t0, t1)) _cinePendingStart = id;
 }
 
@@ -2220,6 +2253,7 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
     _foeSounds.clear(); _foeBarked.clear(); _foeStat.clear(); _foeNodeId.clear(); _bossStat.clear(); _bossIndex = -1;
     _cineActors.clear(); _actorObjects.clear(); _actorVBs = nil; _actorIBs = nil; _actorTex = nil; _actorCounts.clear(); _actorBatchMesh.clear();
     _cineCache.clear(); _cineBad.clear(); _triggerCooldownMs.clear(); _cinePendingStart = -1; _epiloguePlayed = NO; _cineCompleteOnEnd = NO;
+    _blackAlpha = 0; _shakeUntilMs = 0; _shakeAmp = 0; _shakeLenMs = 0;
     _winPlayed = NO; _musicAction = NO; _musicSwitchMs = 0; _scoreMusicMs = 0;
     _npcBones = nil;
     _room = std::make_unique<LevelRoom>();
@@ -2301,6 +2335,7 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
         }
         if (_flow.phase == bdae::GameFlow::CINEMATIC) {
             if (_qteOpen) { [self resolveQte:YES now:nowMs]; return; }   // tap inside the window = success
+            if (_cineActive && !_cine.interfaceAt(nowMs - _cineStartMs).skip) return;   // the script refuses skipping
             [self finishCinematic:nowMs skipped:YES];   // otherwise tap = skip the cinematic
             return;
         }
