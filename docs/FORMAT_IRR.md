@@ -7,7 +7,11 @@ levelnew_NN.irr plus one file per room, levelnew_NN_<k>_Room<k>.irr, and a
 Each node has an <attributes> block with Name, Position, Rotation, Scale and
 an AbsoluteTransformation, plus a user block whose !GameType names what the
 node is. Attributes seen in the wild: MeshFile (also #MeshFile), !ScriptFile
-on Cinematic nodes, !^Owner^CameraArea on CamCtrlPoint nodes.
+on Cinematic nodes, !^Owner^CameraArea on CamCtrlPoint nodes, Enabled /
+AutoDisabled / ^OutToIn^Cinematic / ^InToOut^ / ^WhileIn^ / ^WhileOut^ on
+Trigger nodes, ^Link^Cinematic and ^EndGame^Cinematic on the SpiderMan node,
+^ToStage2^Cinematic / ^ToStage3^Cinematic on Boss nodes, SavePosition and
+^Link^WayPoint on CheckPoint nodes (FORMAT_TRIGGERS.md).
 
 World is Z up. Rotations are quaternions in conjugate convention relative to
 BDAE, which is why the loader conjugates them. Paths use backslashes and
