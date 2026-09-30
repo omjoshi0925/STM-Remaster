@@ -187,6 +187,44 @@ bool Cinematic::messageAt(uint32_t t, Message& out) const {
     return found;
 }
 
+std::vector<Cinematic::Condition> Cinematic::conditions() const {
+    std::vector<Condition> out;
+    for (const CineThread& th : threads)
+        for (const CineCommand& c : th.commands) {
+            if (c.name == "IfObjectDestroyed") out.push_back({ Condition::OBJECT_DESTROYED, (int)c.num("ObjectID", -1), 0 });
+            else if (c.name == "IfEnemyDead")  out.push_back({ Condition::ENEMY_DEAD, (int)c.num("IDEnemy", -1), 0 });
+            else if (c.name == "IfHealthTo")   out.push_back({ Condition::HEALTH_AT_MOST, (int)c.num("IDEnemy", -1), c.num("Health", 0) });
+        }
+    return out;
+}
+
+std::vector<int> Cinematic::startsBetween(uint32_t t0, uint32_t t1) const {
+    std::vector<int> out;
+    for (const CineThread& th : threads)
+        for (const CineCommand& c : th.commands)
+            if (c.name == "StartCinematic" && c.stampMs > t0 && c.stampMs <= t1)
+                out.push_back((int)c.num("CinematicID", -1));
+    return out;
+}
+
+std::vector<std::pair<int, bool>> Cinematic::triggerTogglesBetween(uint32_t t0, uint32_t t1) const {
+    std::vector<std::pair<int, bool>> out;
+    for (const CineThread& th : threads)
+        for (const CineCommand& c : th.commands)
+            if ((c.name == "EnableTrigger" || c.name == "DisableTrigger") && c.stampMs > t0 && c.stampMs <= t1)
+                out.push_back({ (int)c.num("^ID^Trigger", -1), c.name == "EnableTrigger" });
+    return out;
+}
+
+std::vector<std::pair<int, bool>> Cinematic::cameraAreaTogglesBetween(uint32_t t0, uint32_t t1) const {
+    std::vector<std::pair<int, bool>> out;
+    for (const CineThread& th : threads)
+        for (const CineCommand& c : th.commands)
+            if (c.name == "EnableCameraArea" && c.stampMs > t0 && c.stampMs <= t1)
+                out.push_back({ (int)c.num("^ID^CameraArea", -1), c.flag("enable") });
+    return out;
+}
+
 bool Cinematic::cameraRequest(CameraRequest& out) const {
     for (const CineThread& th : threads)
         for (const CineCommand& c : th.commands)

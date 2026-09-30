@@ -9,6 +9,7 @@
 #include "BDAEModel.hpp"
 #include <cstdint>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace bdae {
@@ -99,6 +100,19 @@ struct Cinematic {
     std::vector<Message> messages() const;
     // The message on screen at t, if any (latest started, still within its timer).
     bool messageAt(uint32_t t, Message& out) const;
+
+    // ---- Milestone 22: control flow -------------------------------------
+    // If* gates: a script only runs once every condition holds. IfObjectDestroyed
+    // names a prop, IfEnemyDead an enemy spawn, IfHealthTo an enemy at or below
+    // a health percentage. The caller evaluates them against its world.
+    struct Condition { enum Kind { OBJECT_DESTROYED, ENEMY_DEAD, HEALTH_AT_MOST } kind; int id; float value; };
+    std::vector<Condition> conditions() const;
+    // StartCinematic in (t0, t1]: Cinematic node ids to hand over to.
+    std::vector<int> startsBetween(uint32_t t0, uint32_t t1) const;
+    // EnableTrigger / DisableTrigger in (t0, t1]: (trigger id, enabled).
+    std::vector<std::pair<int, bool>> triggerTogglesBetween(uint32_t t0, uint32_t t1) const;
+    // EnableCameraArea in (t0, t1]: (camera area id, enabled).
+    std::vector<std::pair<int, bool>> cameraAreaTogglesBetween(uint32_t t0, uint32_t t1) const;
 };
 
 // PlayDAEAnim names files the pack does not always ship under that exact
