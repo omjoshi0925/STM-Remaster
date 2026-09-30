@@ -120,3 +120,62 @@ PlayDAEAnim (hero and actors), PlayDAECamera (track, chain, level end),
 ChangeCamera, ShowMessage, StartQTE. Not yet: StartCinematic, Tutorial,
 InterfaceControl, IfObjectDestroyed/IfEnemyDead gating, SetSlowMotion,
 ShakeCamera, DisableTrigger/EnableTrigger, Save, PlayEffect, Transport.
+
+## Control flow (Milestone 22)
+
+**Windows are half-open.** Every `*Between(t0, t1)` query reports commands
+with `t0 <= stamp < t1`. Until this milestone they were `(t0, t1]`, so a
+command at stamp 0 (most StartCinematic, EnableCameraArea and many
+SoundControl) never fired on the first tick.
+
+**Zero-length scripts.** 53 of the 138 scripts the two levels' Cinematic
+nodes name have no stamp after 0: they are control beats (a gate plus a
+hand-over, a Tutorial card, a Save). They run like any other script; ones
+with nothing to show finish 400 ms later.
+
+**Gates.** `IfObjectDestroyed ObjectID`, `IfEnemyDead IDEnemy` and
+`IfHealthTo IDEnemy Health` on the Basic thread are the script's
+preconditions: it does not run until all hold. "Object" means any scene node;
+45 of the 61 gates in the two levels name enemy spawns (kill-all beats), the
+rest props. The trigger that named the script stays armed meanwhile, which is
+why gated scripts hang off WhileIn / WhileOut triggers.
+
+**Hand-overs.** `StartCinematic CinematicID` ends the running script and
+starts the named one (in the data it always sits on the last stamp). Together
+with PlayDAECamera's `^ID^Cinematic^Next` and StartQTE's success/fail ids it
+forms the graph `Tools/script_graph.py` prints. The level's own start script
+comes from the SpiderMan node (`^Link^Cinematic`, Level 1 = 1265): the
+prologue is not triggered by a volume.
+
+**Trigger and area control.** `EnableTrigger` / `DisableTrigger ^ID^Trigger`
+arm and disarm volumes (42 uses; 13 arm volumes that start disabled).
+`EnableCameraArea ^ID^CameraArea enable` switches authored camera volumes.
+
+**World effects.** `Save ^ID^CheckPoint` sets the respawn point. `GetDamage
+DamageValue` (player thread; 200 = a QTE failure kills) hurts Spider-Man.
+`KillObject` on an object thread removes that enemy or prop. `ShowHealth
+ObjectID` brings up the boss bar for that enemy. `LevelEnd` (GoToNext) and
+`GameEnd` complete the level; PlayDAECamera "level end" does too. `Unlock
+$SkillID` ("0 ultimate", "1 sense") is reported (skills are not implemented).
+
+**Presentation.** `InterfaceControl` (103 uses): ControlEnable (false =
+letterbox, true = the player keeps the view), BlackEnable (fade to black),
+SkipEnable (whether SKIP is offered), ArrowEnable, AttributionEnable.
+`ShakeCamera MaxOff ShakeFrame XRate YRate ZRate` (11 uses; frames at the
+original's 30 fps). `Tutorial` (21 uses): `Content$Tutorial_STRINGID` and
+`Title$Tutorial_STRINGID` key Tutorial.map (FORMAT_STRINGS.md), `blackScreen`,
+`Timer` (-1 = wait for a tap), `$TutorialButton`, `HintID`. Tutorial text
+carries glyph codes `^J` jump, `^K` attack, `^L` web, `^D` stick, `^S`
+spider-sense, `^I` interact, `^T` web icon and colour codes `^0`..`^9`;
+`Cinematic::expandTutorialMarkup` spells the buttons out.
+`SetSlowMotion Enable Denominator TimeOn TimeOnToEnd` (35 uses) is parsed
+(`slowMotionAt`) but not applied.
+
+**The epilogue.** When a level-end script finishes, the SpiderMan node's
+`^EndGame^Cinematic` (Level 1: 1267, 55 s) plays before the score screen.
+
+**Still not honoured:** SetSlowMotion (parsed), Transport (12, player thread,
+no attributes), Physics, Throwing (EnmeyID, ObjectID), StopAction,
+StartProgress / StopProgress (boss run between WayPoints), StartSlide
+(WayPoint pair), StartTimer, Restore, MustBeVisibleRoom, ShowStream,
+PlayEffect, and the boss nodes' ^ToStage2/3^ links.
