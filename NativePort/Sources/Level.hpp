@@ -146,6 +146,11 @@ struct LevelRoom {
     std::map<std::string, std::string> cinematicByTag;   // tag -> .cff path
     std::map<int, std::string> cinematicById;            // Cinematic node id -> .cff path (QTE branches)
     std::map<int, Vec3> checkpointById;                  // CheckPoint node id -> position (scripts' Save)
+    // The SpiderMan node's own links: ^Link^Cinematic plays when the level
+    // starts (Level 1: 1265, the prologue), ^EndGame^Cinematic when the level
+    // ends (Level 1: 1267, the epilogue with the girl). -1 when none (Level 2).
+    int startCinematic = -1;
+    int endGameCinematic = -1;
     int cameraVolumeIndexById(int id) const;             // -1 when unknown
     std::map<int, std::vector<Vec3>> camPointsByOwner;   // CameraArea id -> points
     std::vector<std::pair<std::string, Vec3>> markers;   // checkpoints, waypoints, web points

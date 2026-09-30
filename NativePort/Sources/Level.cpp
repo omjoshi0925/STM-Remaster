@@ -309,6 +309,11 @@ bool LevelRoom::load(const std::string& assetRoot, const std::string& levelDir,
         else if (n.gameType == "Bonus")
             bonuses.push_back(Vec3{ n.absolute.m[12], n.absolute.m[13], n.absolute.m[14] });
         else if (n.gameType == "SpiderMan" || n.gameType == "SpawnPoint") {
+            if (n.gameType == "SpiderMan") {
+                auto li = n.attrs.find("^Link^Cinematic"), ei = n.attrs.find("^EndGame^Cinematic");
+                if (li != n.attrs.end()) startCinematic = std::atoi(li->second.c_str());
+                if (ei != n.attrs.end()) endGameCinematic = std::atoi(ei->second.c_str());
+            }
             if (!hasSpawn) {
                 hasSpawn = true;
                 spawn = { n.absolute.m[12], n.absolute.m[13], n.absolute.m[14] };
