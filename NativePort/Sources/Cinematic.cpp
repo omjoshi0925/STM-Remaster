@@ -342,6 +342,30 @@ float Cinematic::slowMotionAt(uint32_t t) const {
     return div;
 }
 
+std::string Cinematic::expandTutorialMarkup(const std::string& text) {
+    std::string out;
+    for (size_t i = 0; i < text.size(); ++i) {
+        char c = text[i];
+        if (c == '^' && i + 1 < text.size()) {
+            char k = (char)std::toupper((unsigned char)text[++i]);
+            switch (k) {
+                case 'J': out += "JUMP"; break;
+                case 'K': out += "PUNCH"; break;
+                case 'L': out += "WEB"; break;
+                case 'D': out += "THE STICK"; break;
+                case 'S': out += "DODGE"; break;
+                case 'I': out += "GRAB"; break;
+                case 'T': out += "THE WEB ICON"; break;
+                default: break;   // ^0..^9 colour codes and anything unknown vanish
+            }
+            continue;
+        }
+        if (c == '\r') continue;
+        out.push_back(c == '\n' ? ' ' : c);
+    }
+    return out;
+}
+
 bool Cinematic::cameraRequest(CameraRequest& out) const {
     for (const CineThread& th : threads)
         for (const CineCommand& c : th.commands)

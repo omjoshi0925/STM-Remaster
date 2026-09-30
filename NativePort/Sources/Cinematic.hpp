@@ -138,6 +138,10 @@ struct Cinematic {
     bool tutorialAt(uint32_t t, Tutorial& out) const;
     // SetSlowMotion in effect at t: time divisor (1 = normal speed).
     float slowMotionAt(uint32_t t) const;
+    // Tutorial strings carry button glyph codes (^J jump, ^K attack, ^L web,
+    // ^D stick, ^S sense, ^I interact, ^T web icon) and colour codes (^2, ^0).
+    // Spell the buttons out and drop the colours for the outlined font.
+    static std::string expandTutorialMarkup(const std::string& text);
 };
 
 // PlayDAEAnim names files the pack does not always ship under that exact
