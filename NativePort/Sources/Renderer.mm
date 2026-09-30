@@ -825,6 +825,7 @@ fragment half4 frag(Out i                   [[stage_in]],
         uint32_t t = nowMs - _cineStartMs;
         for (const std::string &s : _cine.soundsBetween(_cineLastMs, t))
             if (!s.empty()) [_audio playEvent:s.c_str()];
+        [self applyScript:_cine from:_cineLastMs to:t now:nowMs];   // the world-changing commands in this window
         _cineLastMs = t;
         _cineHidden.clear();
         for (int id : _cine.hiddenObjectsAt(t)) _cineHidden.insert(id);
@@ -892,7 +893,7 @@ fragment half4 frag(Out i                   [[stage_in]],
         if (_cineCamActive) endMs = MAX(endMs, _cineCamStartMs + _cineCam.durationMs);
         if (_cineHeroActive && _cineHero && !_cineHero->clips.empty())
             endMs = MAX(endMs, (_cineHeroStartMs - _cineStartMs) + (_cineHero->clips[0].endMs - _cineHero->clips[0].startMs));
-        if (t > endMs + 400) [self finishCinematic:nowMs skipped:NO];
+        if (_cinePendingStart >= 0 || t > endMs + 400) [self finishCinematic:nowMs skipped:NO];
     }
     if (_flow.phase == bdae::GameFlow::COMPLETE && _scoreMusicMs && nowMs >= _scoreMusicMs) {
         _scoreMusicMs = 0; [_audio playMusic:"M_SCORE_SCREEN" looping:YES];
@@ -1447,6 +1448,46 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
 // chosen script and running it in place of the current one.
 // Start a .cff (path relative to the level directory): triggers, QTE branches
 // and ^ID^Cinematic^Next chains all come through here.
+// The world-changing commands of a running script in [t0, t1): trigger and
+// camera-area toggles, Save, GetDamage, KillObject, ShowHealth, Unlock,
+// LevelEnd/GameEnd and StartCinematic hand-overs.
+- (void)applyScript:(const bdae::Cinematic &)c from:(uint32_t)t0 to:(uint32_t)t1 now:(uint32_t)nowMs {
+    for (const auto &tg : c.triggerTogglesBetween(t0, t1))
+        if (_script.setEnabled(tg.first, tg.second)) NSLog(@"[TotalMayhem] script %s trigger %d", tg.second ? "arms" : "disarms", tg.first);
+        else NSLog(@"[TotalMayhem] script names unknown trigger %d", tg.first);
+    if (_room) {
+        for (const auto &ca : c.cameraAreaTogglesBetween(t0, t1)) {
+            int ci = _room->cameraVolumeIndexById(ca.first);
+            if (ci >= 0) _room->cameraVolumes[(size_t)ci].enabled = ca.second;
+        }
+        for (int id : c.savesBetween(t0, t1)) {
+            auto it = _room->checkpointById.find(id);
+            if (it == _room->checkpointById.end()) { NSLog(@"[TotalMayhem] script Save names unknown checkpoint %d", id); continue; }
+            _flow.checkpoint = it->second; _flow.checkpointReached = true;
+            [_audio playEvent:"SFX_SPIDER_LOGO_IN"];
+            NSLog(@"[TotalMayhem] script saves at checkpoint %d", id);
+        }
+    }
+    float dmg = c.damageBetween(t0, t1);
+    if (dmg > 0 && _heroHP > 0) {
+        _heroHP = fmaxf(0.0f, _heroHP - dmg);
+        std::string hu = _slotTablesOk ? _heroSounds.event("k_mc_sfx_hurt", _vox, _sfxVariant++) : "SFX_HURT_1";
+        [_audio playEvent:hu.c_str()];
+        NSLog(@"[TotalMayhem] script GetDamage %.0f -> HP %.0f", dmg, _heroHP);
+    }
+    for (int id : c.killsBetween(t0, t1)) {
+        for (size_t i = 0; i < _foes.size() && i < _foeNodeId.size(); ++i)
+            if (_foeNodeId[i] == id && _foes[i].alive()) _foes[i].takeHit(1e6f, nowMs, _foes[i].x, _foes[i].y);
+        for (PropInst &pp : _props) if (pp.nodeId == id) pp.alive = false;
+    }
+    for (int id : c.showHealthBetween(t0, t1))
+        for (size_t i = 0; i < _foes.size() && i < _foeNodeId.size(); ++i)
+            if (_foeNodeId[i] == id && _foes[i].alive()) { _bossIndex = (int)i; NSLog(@"[TotalMayhem] script shows health of %d", id); }
+    for (const std::string &sk : c.unlocksBetween(t0, t1)) NSLog(@"[TotalMayhem] script unlocks skill '%s' (skills not implemented)", sk.c_str());
+    if (c.levelEndBetween(t0, t1)) _cineLevelEnd = YES;
+    for (int id : c.startsBetween(t0, t1)) _cinePendingStart = id;
+}
+
 // Parsed scripts by level-relative path (they are read every frame for While*
 // triggers' gates, so parse once).
 - (const bdae::Cinematic *)scriptAt:(const std::string &)relPath {
@@ -1530,10 +1571,27 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
     for (auto &ap : _cineActors) if (ap->live) { ap->actor.poseAt(ap->actor.startMs + ap->actor.durationMs()); ap->live = false; }
     _cineActive = NO; _cineHidden.clear(); _cineHeroActive = NO; _cineHeroFile.clear(); _cineCamActive = NO; _qteOpen = NO;
     NSLog(@"[TotalMayhem] cinematic '%s' %s", _cineName.c_str(), skipped ? "skipped" : "finished");
-    const int next = _cineNext; const BOOL levelEnd = _cineLevelEnd;
-    _cineNext = -1; _cineLevelEnd = NO;
+    // a StartCinematic seen this tick wins over the camera's ^ID^Cinematic^Next
+    const int next = _cinePendingStart >= 0 ? _cinePendingStart : _cineNext;
+    const BOOL levelEnd = _cineLevelEnd, completeNow = _cineCompleteOnEnd;
+    _cineNext = -1; _cineLevelEnd = NO; _cinePendingStart = -1; _cineCompleteOnEnd = NO;
+    if (completeNow) {
+        _flow.completeLevel(nowMs);       // the epilogue has played
+        NSLog(@"[TotalMayhem] level %d complete (after the epilogue)", _flow.levelIndex + 1);
+        return;
+    }
     if (levelEnd) {
-        _flow.completeLevel(nowMs);       // the authored level end (PlayDAECamera "level end")
+        // the authored level end (PlayDAECamera "level end" / LevelEnd): the
+        // SpiderMan node's ^EndGame^Cinematic plays first when the level has one
+        if (_room && _room->endGameCinematic >= 0 && !_epiloguePlayed) {
+            auto ep = _room->cinematicById.find(_room->endGameCinematic);
+            _epiloguePlayed = YES;
+            if (ep != _room->cinematicById.end() && [self startCinematic:ep->second tag:"epilogue" now:nowMs]) {
+                _cineCompleteOnEnd = YES;
+                return;
+            }
+        }
+        _flow.completeLevel(nowMs);
         NSLog(@"[TotalMayhem] level %d complete (authored end)", _flow.levelIndex + 1);
         return;
     }
