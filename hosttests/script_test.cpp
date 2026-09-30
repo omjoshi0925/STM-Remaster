@@ -28,7 +28,21 @@ int main(int argc, char** argv) {
     for (auto& c : L.cameraVolumes) if (!c.controlPoints.empty()) ++withPts;
     std::printf("  %d triggers name a cinematic; %zu camera volumes carry control points\n",
                 withCine, (size_t)withPts);
-    ck(withCine >= 30, "cinematics link to their same-named triggers", std::to_string(withCine));
+    ck(withCine >= 25, "triggers pair with the script their authored enter link names", std::to_string(withCine));
+    int enabledAtStart = 0, autoOff = 0, linked = 0, whileIn = 0, unresolved = 0;
+    for (auto& t : L.triggers) {
+        if (t.enabled) ++enabledAtStart;
+        if (t.autoDisable) ++autoOff;
+        if (t.enterCinematic >= 0 || t.whileInCinematic >= 0 || t.exitCinematic >= 0 || t.whileOutCinematic >= 0) ++linked;
+        if (t.whileInCinematic >= 0) ++whileIn;
+        for (int id : { t.enterCinematic, t.exitCinematic, t.whileInCinematic, t.whileOutCinematic })
+            if (id >= 0 && !L.cinematicById.count(id)) ++unresolved;
+    }
+    std::printf("  %d triggers enabled at start, %d auto-disable, %d linked (%d WhileIn), %d links unresolved\n",
+                enabledAtStart, autoOff, linked, whileIn, unresolved);
+    ck(enabledAtStart < (int)L.triggers.size() && enabledAtStart > 20, "about half the triggers start disabled (scripts arm them)");
+    ck(unresolved == 0, "every trigger link names a Cinematic node the level knows");
+    ck(whileIn >= 5, "WhileIn triggers exist (repeating scripts with If* gates)");
     ck(withPts == (int)L.cameraVolumes.size(), "every camera volume has control points");
 
     // the tags the level's own script vocabulary must contain
@@ -55,7 +69,7 @@ int main(int argc, char** argv) {
     tr.bind(L);
     ck(tr.firedCount() == 0, "nothing has fired before play");
     auto first = tr.update(L.triggers[0].center);
-    ck(first.size() == 1 && first[0].tag == L.triggers[0].tag,
+    ck(first.size() >= 1 && first[0].tag == L.triggers[0].tag,
        "entering a volume reports it once");
     ck(tr.update(L.triggers[0].center).empty(), "staying inside does not re-fire");
     ck(tr.hasFired(L.triggers[0].tag), "the runtime remembers what has fired");

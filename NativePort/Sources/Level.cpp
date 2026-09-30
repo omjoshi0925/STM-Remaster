@@ -337,6 +337,16 @@ bool LevelRoom::load(const std::string& assetRoot, const std::string& levelDir,
             t.half = Vec3{ std::fmax(std::fabs(n.scale.x) * 50.0f, 120.0f),
                            std::fmax(std::fabs(n.scale.y) * 50.0f, 120.0f),
                            std::fmax(std::fabs(n.scale.z) * 50.0f, 200.0f) };
+            t.id = n.id;
+            auto attr = [&](const char* k, const char* def) {
+                auto it = n.attrs.find(k); return it == n.attrs.end() ? std::string(def) : it->second;
+            };
+            t.enabled = attr("Enabled", "true") == "true";
+            t.autoDisable = attr("AutoDisabled", "true") == "true";
+            t.enterCinematic    = std::atoi(attr("^OutToIn^Cinematic", "-1").c_str());
+            t.exitCinematic     = std::atoi(attr("^InToOut^Cinematic", "-1").c_str());
+            t.whileInCinematic  = std::atoi(attr("^WhileIn^Cinematic", "-1").c_str());
+            t.whileOutCinematic = std::atoi(attr("^WhileOut^Cinematic", "-1").c_str());
             triggers.push_back(t);
         }
         else if (n.gameType == "Cinematic") {
@@ -412,8 +422,13 @@ bool LevelRoom::loadFullLevel(const std::string& assetRoot, const std::string& l
 // same-named triggers, camera control points onto their owning volume.
 void LevelRoom::resolveScripting() {
     for (TriggerVolume& t : triggers) {
-        auto it = cinematicByTag.find(t.tag);
-        if (it != cinematicByTag.end()) t.cinematic = it->second;
+        // Milestone 22: the script a trigger runs is its authored ^OutToIn^Cinematic
+        // link, not a same-named Cinematic node. The name pairing used until now
+        // disagreed with the links on 31 of 64 Level 1 triggers (and armed triggers
+        // the original keeps disabled), so it is gone; a trigger without an enter
+        // link has no enter script.
+        auto byId = cinematicById.find(t.enterCinematic);
+        t.cinematic = (t.enterCinematic >= 0 && byId != cinematicById.end()) ? byId->second : std::string();
     }
     for (CameraVolume& cv : cameraVolumes) {
         auto it = camPointsByOwner.find(cv.id);

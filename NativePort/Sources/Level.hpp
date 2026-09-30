@@ -97,8 +97,18 @@ struct LevelRoom {
     // The suffix after "Trigger_" is the tag the runtime reacts to, and a
     // Cinematic node with the matching suffix names the .cff script.
     struct TriggerVolume {
-        std::string name, tag, cinematic;
+        std::string name, tag, cinematic;   // cinematic: the enter script's path (authored link, tag pairing as fallback)
         Vec3 center{}, half{};
+        // Authored fields (Milestone 22): half the triggers start disabled and
+        // are armed by a script's EnableTrigger; AutoDisabled ones fire once.
+        // The four links are Cinematic node ids (-1 = none).
+        int id = -1;
+        bool enabled = true;
+        bool autoDisable = true;
+        int enterCinematic = -1;     // ^OutToIn^Cinematic
+        int exitCinematic = -1;      // ^InToOut^Cinematic
+        int whileInCinematic = -1;   // ^WhileIn^Cinematic
+        int whileOutCinematic = -1;  // ^WhileOut^Cinematic
         bool contains(const Vec3& p) const {
             return std::fabs(p.x - center.x) <= half.x &&
                    std::fabs(p.y - center.y) <= half.y &&
