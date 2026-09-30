@@ -113,6 +113,14 @@ struct Cinematic {
     std::vector<std::pair<int, bool>> triggerTogglesBetween(uint32_t t0, uint32_t t1) const;
     // EnableCameraArea in (t0, t1]: (camera area id, enabled).
     std::vector<std::pair<int, bool>> cameraAreaTogglesBetween(uint32_t t0, uint32_t t1) const;
+
+    // World effects in (t0, t1]:
+    std::vector<int> savesBetween(uint32_t t0, uint32_t t1) const;        // Save: CheckPoint ids
+    float damageBetween(uint32_t t0, uint32_t t1) const;                  // GetDamage on the player thread, summed
+    std::vector<int> killsBetween(uint32_t t0, uint32_t t1) const;        // KillObject: the thread's object id
+    std::vector<int> showHealthBetween(uint32_t t0, uint32_t t1) const;   // ShowHealth: enemy ids whose bar appears
+    bool levelEndBetween(uint32_t t0, uint32_t t1) const;                 // LevelEnd or GameEnd
+    std::vector<std::string> unlocksBetween(uint32_t t0, uint32_t t1) const;   // Unlock $SkillID ("1 sense")
 };
 
 // PlayDAEAnim names files the pack does not always ship under that exact

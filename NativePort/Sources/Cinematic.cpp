@@ -225,6 +225,58 @@ std::vector<std::pair<int, bool>> Cinematic::cameraAreaTogglesBetween(uint32_t t
     return out;
 }
 
+std::vector<int> Cinematic::savesBetween(uint32_t t0, uint32_t t1) const {
+    std::vector<int> out;
+    for (const CineThread& th : threads)
+        for (const CineCommand& c : th.commands)
+            if (c.name == "Save" && c.stampMs > t0 && c.stampMs <= t1) out.push_back((int)c.num("^ID^CheckPoint", -1));
+    return out;
+}
+
+float Cinematic::damageBetween(uint32_t t0, uint32_t t1) const {
+    float total = 0;
+    for (const CineThread& th : threads) {
+        if (th.type != 3) continue;
+        for (const CineCommand& c : th.commands)
+            if (c.name == "GetDamage" && c.stampMs > t0 && c.stampMs <= t1) total += c.num("DamageValue", 0);
+    }
+    return total;
+}
+
+std::vector<int> Cinematic::killsBetween(uint32_t t0, uint32_t t1) const {
+    std::vector<int> out;
+    for (const CineThread& th : threads)
+        for (const CineCommand& c : th.commands)
+            if (c.name == "KillObject" && c.stampMs > t0 && c.stampMs <= t1) out.push_back(th.objectId);
+    return out;
+}
+
+std::vector<int> Cinematic::showHealthBetween(uint32_t t0, uint32_t t1) const {
+    std::vector<int> out;
+    for (const CineThread& th : threads)
+        for (const CineCommand& c : th.commands)
+            if (c.name == "ShowHealth" && c.stampMs > t0 && c.stampMs <= t1) {
+                int id = (int)c.num("ObjectID", -1);
+                out.push_back(id >= 0 ? id : th.objectId);
+            }
+    return out;
+}
+
+bool Cinematic::levelEndBetween(uint32_t t0, uint32_t t1) const {
+    for (const CineThread& th : threads)
+        for (const CineCommand& c : th.commands)
+            if ((c.name == "LevelEnd" || c.name == "GameEnd") && c.stampMs > t0 && c.stampMs <= t1) return true;
+    return false;
+}
+
+std::vector<std::string> Cinematic::unlocksBetween(uint32_t t0, uint32_t t1) const {
+    std::vector<std::string> out;
+    for (const CineThread& th : threads)
+        for (const CineCommand& c : th.commands)
+            if (c.name == "Unlock" && c.stampMs > t0 && c.stampMs <= t1) out.push_back(c.str("$SkillID"));
+    return out;
+}
+
 bool Cinematic::cameraRequest(CameraRequest& out) const {
     for (const CineThread& th : threads)
         for (const CineCommand& c : th.commands)
