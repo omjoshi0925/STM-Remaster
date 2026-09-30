@@ -691,3 +691,56 @@ actor per object per script; hostages still in bind pose; bone regions for
 ### NOT YET IMPLEMENTED
 Wall traversal and web swing, original boss phases, menus, saves and ranks,
 destruction states, room streaming, 3D audio panning, levels 3 to 12.
+
+## Milestone 22 — the authored script graph (2026-09-29)
+
+### IMPLEMENTED
+Triggers now run on their authored data: Enabled (31 of Level 1's 64 start
+disabled), AutoDisabled, and the four Cinematic links (^OutToIn^, ^InToOut^,
+^WhileIn^, ^WhileOut^). The name-based pairing is gone; TriggerRuntime reports
+enter/exit edges and While* frames, scripts arm and disarm volumes through
+EnableTrigger/DisableTrigger, and AutoDisabled triggers switch off only when
+their script actually ran. If* gates (IfEnemyDead, IfObjectDestroyed,
+IfHealthTo - 61 across the two levels, 45 of them on enemy spawns) hold a
+script until they are satisfied, so kill-all beats work. StartCinematic hands
+over between scripts, zero-length control beats run, and every command window
+is half-open so stamp-0 commands fire. The level starts from the SpiderMan
+node's ^Link^Cinematic (Level 1's prologue plays on the chapter-card tap) and
+its ^EndGame^Cinematic (the 55 s epilogue) plays before the score screen.
+Scripts act on the world: Save sets the respawn checkpoint, GetDamage hurts
+Spider-Man, KillObject removes an enemy or prop, ShowHealth brings up the
+boss bar, LevelEnd/GameEnd complete the level, EnableCameraArea switches
+camera volumes. InterfaceControl drives the letterbox, a black fade and
+whether SKIP is offered (SKIP now draws during scripts at all); ShakeCamera
+jitters the view; Tutorial cards show the original prompts from Tutorial.map
+in the outlined font, black-screen when asked, waiting for a tap when Timer
+is -1. New tools: script_graph.py (the whole graph per level, with unreached
+nodes) and dump_cff's control-flow attributes.
+
+### VERIFIED LOCALLY
+23 host suites and 7 unit suites pass on the extracted packs. script_flow:
+every StartCinematic (25), trigger toggle (42), Save (11), EnableCameraArea (3)
+and If* gate (61) names a node the level knows; 19 of 21 Tutorial cards have
+text (Level 2 names STR_TUTORIAL_01 twice, which no table ships); Level 1
+starts at 1265 and chains to 1266, ends through 1267; Level 2 names neither.
+Trigger runtime unit coverage: disabled volumes stay silent, EnableTrigger by
+id, WHILE_IN repeats, consume honours AutoDisabled. Every commit compiles on
+its own; Renderer.mm passes the static checks.
+
+### REQUIRES DEVICE VALIDATION
+The whole flow of Level 1 under the authored graph: prologue on the chapter
+tap, tutorial cards, gated beats opening when their enemies fall, scripted
+saves, black fades, shake amplitude, the epilogue, the score screen; and that
+no beat is stuck behind a trigger box that is too small (the extents are
+still ours). No device screenshots have been received since Milestone 12.
+
+### KNOWN LIMITATIONS
+ControlEnable=true scripts still pause play; enter edges during a running
+script are dropped; SetSlowMotion parsed only; boss ^ToStage2/3^ scripts,
+StartProgress/StopProgress, StartSlide, Transport, Physics, Throwing,
+PlayEffect not honoured; checkpoint-visited completion still coexists with
+the authored LevelEnd; shake scale is a guess.
+
+### NOT YET IMPLEMENTED
+Wall traversal and web swing, original boss phases, menus, saves and ranks,
+destruction states, room streaming, 3D audio panning, levels 3 to 12.
