@@ -8,7 +8,12 @@ import glob, os, re, sys
 from collections import Counter
 SHOW = ('pos', '$Anim', '$VoxSounds', 'target', 'Distance', 'AnimFile', 'CameraAnimFile',
         '^ID^Cinematic^Next', 'QTEID', '^ID^CameraArea', 'Visible', 'ObjectID',
-        '$LEVEL_STRINGID', '$MessageFace', 'Timer', 'level end')
+        '$LEVEL_STRINGID', '$MessageFace', 'Timer', 'level end',
+        # control flow (Milestone 22)
+        'CinematicID', '^ID^Trigger', 'IDEnemy', 'Health', '^ID^CheckPoint', 'DamageValue',
+        'ControlEnable', 'BlackEnable', 'SkipEnable', 'Enable', 'Denominator', 'TimeOn',
+        'MaxOff', 'ShakeFrame', 'Title$Tutorial_STRINGID', 'Content$Tutorial_STRINGID',
+        'blackScreen', '$SkillID', 'enable', 'GoToNext')
 def load(path):
     b = open(path, 'rb').read()
     return b[2:].decode('utf-16-le', errors='replace') if b[:2] == b'\xff\xfe' else b.decode('utf-16-le', errors='replace')
