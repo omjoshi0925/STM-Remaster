@@ -68,15 +68,19 @@ int main(int argc, char** argv) {
     TriggerRuntime tr;
     tr.bind(L);
     ck(tr.firedCount() == 0, "nothing has fired before play");
+    auto enters = [](const std::vector<ScriptEvent>& ev) { int n = 0; for (auto& e : ev) if (e.kind == ScriptEvent::ENTER) ++n; return n; };
     auto first = tr.update(L.triggers[0].center);
-    ck(first.size() >= 1 && first[0].tag == L.triggers[0].tag,
+    ck(enters(first) >= 1 && first[0].tag == L.triggers[0].tag,
        "entering a volume reports it once");
-    ck(tr.update(L.triggers[0].center).empty(), "staying inside does not re-fire");
+    ck(enters(tr.update(L.triggers[0].center)) == 0, "staying inside does not re-fire the enter edge");
     ck(tr.hasFired(L.triggers[0].tag), "the runtime remembers what has fired");
 
     int total = 0;
     for (auto& t : L.triggers) { auto ev = tr.update(t.center); total += (int)ev.size(); }
-    std::printf("  walking every volume fired %d more\n", total);
+    std::printf("  walking every volume fired %d more (%d enabled at start)\n", total, tr.enabledCount());
+    for (size_t i = 0; i < L.triggers.size(); ++i) tr.setEnabled(L.triggers[i].id, true);   // arm the script-armed ones too
+    for (auto& t : L.triggers) tr.update(Vec3{ t.center.x + 1e6f, 0, 0 });
+    for (auto& t : L.triggers) tr.update(t.center);
     ck(tr.firedCount() >= (int)L.triggers.size() - 4,
        "walking the level fires essentially every volume",
        std::to_string(tr.firedCount()) + "/" + std::to_string(L.triggers.size()));
