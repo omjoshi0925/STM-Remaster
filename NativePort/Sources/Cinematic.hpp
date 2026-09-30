@@ -121,6 +121,23 @@ struct Cinematic {
     std::vector<int> showHealthBetween(uint32_t t0, uint32_t t1) const;   // ShowHealth: enemy ids whose bar appears
     bool levelEndBetween(uint32_t t0, uint32_t t1) const;                 // LevelEnd or GameEnd
     std::vector<std::string> unlocksBetween(uint32_t t0, uint32_t t1) const;   // Unlock $SkillID ("1 sense")
+
+    // Presentation:
+    // InterfaceControl in effect at t (103 uses): whether the player keeps
+    // control, the screen is black, SKIP is offered. Defaults when a script
+    // never sets it: control off, not black, skip on (a cut scene).
+    struct Interface { bool control = false; bool black = false; bool skip = true; bool arrow = false; bool attribution = false; bool set = false; };
+    Interface interfaceAt(uint32_t t) const;
+    // ShakeCamera in (t0, t1]: amplitude in units and length in frames.
+    struct Shake { float maxOff; int frames; float xRate, yRate, zRate; };
+    std::vector<Shake> shakesBetween(uint32_t t0, uint32_t t1) const;
+    // Tutorial card in effect at t: string ids from Tutorial.map, blackScreen,
+    // Timer (-1 = until dismissed), $TutorialButton (-1 = none).
+    struct Tutorial { uint32_t stampMs = 0; std::string titleId, contentId; bool blackScreen = false; int timerMs = -1; int button = -1; };
+    std::vector<Tutorial> tutorials() const;
+    bool tutorialAt(uint32_t t, Tutorial& out) const;
+    // SetSlowMotion in effect at t: time divisor (1 = normal speed).
+    float slowMotionAt(uint32_t t) const;
 };
 
 // PlayDAEAnim names files the pack does not always ship under that exact

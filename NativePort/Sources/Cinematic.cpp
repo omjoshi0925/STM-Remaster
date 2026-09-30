@@ -277,6 +277,71 @@ std::vector<std::string> Cinematic::unlocksBetween(uint32_t t0, uint32_t t1) con
     return out;
 }
 
+Cinematic::Interface Cinematic::interfaceAt(uint32_t t) const {
+    Interface out; uint32_t best = 0;
+    for (const CineThread& th : threads)
+        for (const CineCommand& c : th.commands)
+            if (c.name == "InterfaceControl" && c.stampMs <= t && (!out.set || c.stampMs >= best)) {
+                out.set = true; best = c.stampMs;
+                out.control = c.flag("ControlEnable");
+                out.black = c.flag("BlackEnable");
+                out.skip = c.flag("SkipEnable");
+                out.arrow = c.flag("ArrowEnable");
+                out.attribution = c.flag("AttributionEnable");
+            }
+    return out;
+}
+
+std::vector<Cinematic::Shake> Cinematic::shakesBetween(uint32_t t0, uint32_t t1) const {
+    std::vector<Shake> out;
+    for (const CineThread& th : threads)
+        for (const CineCommand& c : th.commands)
+            if (c.name == "ShakeCamera" && c.stampMs > t0 && c.stampMs <= t1)
+                out.push_back({ c.num("MaxOff", 0), (int)c.num("ShakeFrame", 0), c.num("XRate", 1), c.num("YRate", 1), c.num("ZRate", 1) });
+    return out;
+}
+
+std::vector<Cinematic::Tutorial> Cinematic::tutorials() const {
+    std::vector<Tutorial> out;
+    for (const CineThread& th : threads)
+        for (const CineCommand& c : th.commands)
+            if (c.name == "Tutorial") {
+                Tutorial tu;
+                tu.stampMs = c.stampMs;
+                tu.titleId = c.str("Title$Tutorial_STRINGID");
+                tu.contentId = c.str("Content$Tutorial_STRINGID");
+                tu.blackScreen = c.flag("blackScreen");
+                tu.timerMs = c.attr("Timer") ? (int)c.num("Timer", -1) : -1;
+                tu.button = (int)c.num("$TutorialButton", -1);
+                out.push_back(tu);
+            }
+    return out;
+}
+
+bool Cinematic::tutorialAt(uint32_t t, Tutorial& out) const {
+    bool found = false;
+    for (const Tutorial& tu : tutorials()) {
+        if (tu.stampMs > t) continue;
+        if (tu.timerMs > 0 && t >= tu.stampMs + (uint32_t)tu.timerMs) continue;
+        if (!found || tu.stampMs >= out.stampMs) { out = tu; found = true; }
+    }
+    return found;
+}
+
+float Cinematic::slowMotionAt(uint32_t t) const {
+    float div = 1.0f;
+    uint32_t best = 0; bool any = false;
+    for (const CineThread& th : threads)
+        for (const CineCommand& c : th.commands)
+            if (c.name == "SetSlowMotion" && c.stampMs <= t && (!any || c.stampMs >= best)) {
+                any = true; best = c.stampMs;
+                float den = c.num("Denominator", 1), on = c.num("TimeOn", 0);
+                bool enable = c.flag("Enable");
+                div = (enable && den > 0 && (on <= 0 || t < c.stampMs + (uint32_t)on)) ? den : 1.0f;
+            }
+    return div;
+}
+
 bool Cinematic::cameraRequest(CameraRequest& out) const {
     for (const CineThread& th : threads)
         for (const CineCommand& c : th.commands)
