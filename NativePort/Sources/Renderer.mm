@@ -445,6 +445,8 @@ fragment half4 frag(Out i                   [[stage_in]],
     BOOL _epiloguePlayed;          // the SpiderMan node's ^EndGame^Cinematic has run
     BOOL _cineCompleteOnEnd;       // the running script is the epilogue: complete the level when it ends
     float _blackAlpha;             // InterfaceControl BlackEnable fade, 0..1
+    BOOL _tutorialWaiting;         // a Tutorial card with Timer -1 is up: the script waits for a tap
+    uint32_t _tutorialDismissedStamp;   // stamp of the card the player dismissed (so it does not return)
     uint32_t _shakeUntilMs;        // ShakeCamera: live while nowMs < this
     float _shakeAmp;               // ShakeCamera MaxOff in world units
     uint32_t _shakeLenMs;
@@ -604,6 +606,9 @@ fragment half4 frag(Out i                   [[stage_in]],
         if (!_strings.load(assetRoot + "/xlsStrings/MAIN.map",
                            assetRoot + "/xlsStrings/MAIN_EN.data", se))
             NSLog(@"[TotalMayhem] strings: %s", se.c_str());
+        bdae::StringTable tut; std::string te;   // the tutorial prompts (STR_JUMP, STR_COMBAT ...)
+        if (tut.load(assetRoot + "/xlsStrings/Tutorial.map", assetRoot + "/xlsStrings/Tutorial_EN.data", te)) _strings.merge(tut);
+        else NSLog(@"[TotalMayhem] tutorial strings: %s", te.c_str());
     }
     _audio = [[TMAudioManager alloc] initWithAssetRoot:assetRoot];
     {
@@ -890,6 +895,11 @@ fragment half4 frag(Out i                   [[stage_in]],
         // cinematic actors bound by this script follow its clock (first frame
         // held until their PlayDAEAnim stamp, last frame held after)
         for (auto &ap : _cineActors) if (ap->live) ap->actor.poseAt(t);
+        // a Tutorial card with Timer -1 holds the script until the player taps it away
+        {
+            bdae::Cinematic::Tutorial tu;
+            _tutorialWaiting = _cine.tutorialAt(t, tu) && tu.timerMs < 0 && tu.stampMs != _tutorialDismissedStamp;
+        }
         // the script runs until its last stamp, its camera track and Spider-Man's
         // own animation have all played out (the prologue's last command is at
         // 41.8 s but its camera and hero files run 53 s)
@@ -897,7 +907,7 @@ fragment half4 frag(Out i                   [[stage_in]],
         if (_cineCamActive) endMs = MAX(endMs, _cineCamStartMs + _cineCam.durationMs);
         if (_cineHeroActive && _cineHero && !_cineHero->clips.empty())
             endMs = MAX(endMs, (_cineHeroStartMs - _cineStartMs) + (_cineHero->clips[0].endMs - _cineHero->clips[0].startMs));
-        if (_cinePendingStart >= 0 || t > endMs + 400) [self finishCinematic:nowMs skipped:NO];
+        if (!_tutorialWaiting && (_cinePendingStart >= 0 || t > endMs + 400)) [self finishCinematic:nowMs skipped:NO];
     }
     if (_flow.phase == bdae::GameFlow::COMPLETE && _scoreMusicMs && nowMs >= _scoreMusicMs) {
         _scoreMusicMs = 0; [_audio playMusic:"M_SCORE_SCREEN" looping:YES];
@@ -1258,6 +1268,20 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
         _blackAlpha += (want - _blackAlpha) * fminf(1.0f, (float)(1.0 / 60.0) * 4.0f);
         if (fabsf(want - _blackAlpha) < 0.02f) _blackAlpha = want;
     }
+    // word-wrap in the outlined font
+    auto wrapLines = [&](const std::string &line, float th, float maxW) {
+        std::vector<std::string> rows; std::string cur, word;
+        auto flush = [&]() { if (!cur.empty()) rows.push_back(cur); cur.clear(); };
+        for (size_t i = 0; i <= line.size(); ++i) {
+            char c = i < line.size() ? line[i] : ' ';
+            if (c != ' ') { word.push_back(c); continue; }
+            std::string trial = cur.empty() ? word : cur + " " + word;
+            if (textWidth(trial.c_str(), th) > maxW && !cur.empty()) { flush(); cur = word; } else cur = trial;
+            word.clear();
+        }
+        flush();
+        return rows;
+    };
     if (_flow.phase == bdae::GameFlow::CINEMATIC) {
         // letterbox bars instead of a dim: the scene is the point. A script that
         // keeps ControlEnable on (tutorial hints, short beats) shows no bars.
@@ -1275,25 +1299,35 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
             std::string line = _strings.get(msg.stringId, "");
             if (!line.empty()) {
                 const float th = 26 * sc, maxW = W * 0.82f;
-                std::vector<std::string> rows; std::string cur, word;
-                auto flush = [&]() { if (!cur.empty()) rows.push_back(cur); cur.clear(); };
-                for (size_t i = 0; i <= line.size(); ++i) {
-                    char c = i < line.size() ? line[i] : ' ';
-                    if (c != ' ') { word.push_back(c); continue; }
-                    std::string trial = cur.empty() ? word : cur + " " + word;
-                    if (textWidth(trial.c_str(), th) > maxW && !cur.empty()) { flush(); cur = word; } else cur = trial;
-                    word.clear();
-                }
-                flush();
+                std::vector<std::string> rows = wrapLines(line, th, maxW);
                 if (rows.size() > 3) rows.resize(3);
                 float y = H * 0.89f + (H * 0.11f - rows.size() * (th + 4 * sc)) * 0.5f;
                 if (msg.face == 1) { useTex(_uiAtlas); quad(W * 0.04f, H * 0.89f + 6 * sc, 46 * sc, 70 * sc, kPortrait, 255, 255, 255, 255); }
                 for (const std::string &r : rows) { drawText(r.c_str(), W * 0.5f, y, th, 1, 255); y += th + 4 * sc; }
             }
         }
+        // Tutorial card: the prompt from Tutorial.map in the original font on a
+        // dark panel (full black when the script asks); Timer -1 waits for a tap
+        bdae::Cinematic::Tutorial tu;
+        if (_cineActive && _fontAtlas && _cine.tutorialAt(nowMs - _cineStartMs, tu) && tu.stampMs != _tutorialDismissedStamp) {
+            std::string body = bdae::Cinematic::expandTutorialMarkup(_strings.get(tu.contentId, tu.contentId));
+            std::string title = tu.titleId.empty() ? std::string() : bdae::Cinematic::expandTutorialMarkup(_strings.get(tu.titleId, ""));
+            const float th = 30 * sc, maxW = W * 0.66f;
+            std::vector<std::string> rows = wrapLines(body, th, maxW);
+            if (rows.size() > 5) rows.resize(5);
+            float ph = (rows.size() + (title.empty() ? 0 : 1) + (tu.timerMs < 0 ? 1 : 0)) * (th + 6 * sc) + 40 * sc;
+            float pw = W * 0.72f, px = (W - pw) * 0.5f, py = (H - ph) * 0.5f;
+            useTex(_white);
+            if (tu.blackScreen) quad(0, 0, W, H, kFull, 0, 0, 0, 255);
+            quad(px, py, pw, ph, kFull, 8, 10, 20, 225);
+            float y = py + 20 * sc;
+            if (!title.empty()) { drawText(title.c_str(), W * 0.5f, y, th, 1, 255); y += th + 6 * sc; }
+            for (const std::string &r : rows) { drawText(r.c_str(), W * 0.5f, y, th, 1, 255); y += th + 6 * sc; }
+            if (tu.timerMs < 0) drawText("TAP TO CONTINUE", W * 0.5f, y, th * 0.8f, 1, (uint8_t)(150 + 105 * sinf((float)CACurrentMediaTime() * 5.0f)));
+        }
         // SKIP in the original font when the script allows it (the old SKIP case
         // below sat in the non-cinematic branch and never drew during a script)
-        if (cineUi.skip) drawText("SKIP", W - 30 * sc, 24 * sc, 44 * sc, 2, 255);
+        if (cineUi.skip && !_tutorialWaiting) drawText("SKIP", W - 30 * sc, 24 * sc, 44 * sc, 2, 255);
     } else if (_flow.phase != bdae::GameFlow::PLAYING) {
         useTex(_white);
         quad(0, 0, W, H, kFull, 6, 6, 10, _flow.phase == bdae::GameFlow::COMIC ? 255 : 225);
@@ -1563,7 +1597,7 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
     _cineActive = YES; _cineStartMs = nowMs; _cineLastMs = 0; _cineName = tag;
     _cineClip = nullptr; _cineClipName.clear();
     _cineCamActive = NO; _qteOpen = NO; _qteNextIndex = 0; _cineHeroActive = NO; _cineHeroFile.clear();
-    _cineHidden.clear();
+    _cineHidden.clear(); _tutorialWaiting = NO; _tutorialDismissedStamp = 0xFFFFFFFFu;
     [self bindCineActors];
     // the authored camera comes from PlayDAECamera on the Basic thread
     // (camera_lv1_start.bdae ...), which also names the script to chain into
@@ -2253,7 +2287,7 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
     _foeSounds.clear(); _foeBarked.clear(); _foeStat.clear(); _foeNodeId.clear(); _bossStat.clear(); _bossIndex = -1;
     _cineActors.clear(); _actorObjects.clear(); _actorVBs = nil; _actorIBs = nil; _actorTex = nil; _actorCounts.clear(); _actorBatchMesh.clear();
     _cineCache.clear(); _cineBad.clear(); _triggerCooldownMs.clear(); _cinePendingStart = -1; _epiloguePlayed = NO; _cineCompleteOnEnd = NO;
-    _blackAlpha = 0; _shakeUntilMs = 0; _shakeAmp = 0; _shakeLenMs = 0;
+    _blackAlpha = 0; _shakeUntilMs = 0; _shakeAmp = 0; _shakeLenMs = 0; _tutorialWaiting = NO; _tutorialDismissedStamp = 0xFFFFFFFFu;
     _winPlayed = NO; _musicAction = NO; _musicSwitchMs = 0; _scoreMusicMs = 0;
     _npcBones = nil;
     _room = std::make_unique<LevelRoom>();
@@ -2335,6 +2369,12 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
         }
         if (_flow.phase == bdae::GameFlow::CINEMATIC) {
             if (_qteOpen) { [self resolveQte:YES now:nowMs]; return; }   // tap inside the window = success
+            if (_tutorialWaiting && _cineActive) {                        // tap = dismiss the tutorial card
+                bdae::Cinematic::Tutorial tu;
+                if (_cine.tutorialAt(nowMs - _cineStartMs, tu)) _tutorialDismissedStamp = tu.stampMs;
+                _tutorialWaiting = NO;
+                return;
+            }
             if (_cineActive && !_cine.interfaceAt(nowMs - _cineStartMs).skip) return;   // the script refuses skipping
             [self finishCinematic:nowMs skipped:YES];   // otherwise tap = skip the cinematic
             return;
