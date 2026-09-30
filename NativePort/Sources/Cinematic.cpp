@@ -202,7 +202,7 @@ std::vector<int> Cinematic::startsBetween(uint32_t t0, uint32_t t1) const {
     std::vector<int> out;
     for (const CineThread& th : threads)
         for (const CineCommand& c : th.commands)
-            if (c.name == "StartCinematic" && c.stampMs > t0 && c.stampMs <= t1)
+            if (c.name == "StartCinematic" && c.stampMs >= t0 && c.stampMs < t1)
                 out.push_back((int)c.num("CinematicID", -1));
     return out;
 }
@@ -211,7 +211,7 @@ std::vector<std::pair<int, bool>> Cinematic::triggerTogglesBetween(uint32_t t0, 
     std::vector<std::pair<int, bool>> out;
     for (const CineThread& th : threads)
         for (const CineCommand& c : th.commands)
-            if ((c.name == "EnableTrigger" || c.name == "DisableTrigger") && c.stampMs > t0 && c.stampMs <= t1)
+            if ((c.name == "EnableTrigger" || c.name == "DisableTrigger") && c.stampMs >= t0 && c.stampMs < t1)
                 out.push_back({ (int)c.num("^ID^Trigger", -1), c.name == "EnableTrigger" });
     return out;
 }
@@ -220,7 +220,7 @@ std::vector<std::pair<int, bool>> Cinematic::cameraAreaTogglesBetween(uint32_t t
     std::vector<std::pair<int, bool>> out;
     for (const CineThread& th : threads)
         for (const CineCommand& c : th.commands)
-            if (c.name == "EnableCameraArea" && c.stampMs > t0 && c.stampMs <= t1)
+            if (c.name == "EnableCameraArea" && c.stampMs >= t0 && c.stampMs < t1)
                 out.push_back({ (int)c.num("^ID^CameraArea", -1), c.flag("enable") });
     return out;
 }
@@ -229,7 +229,7 @@ std::vector<int> Cinematic::savesBetween(uint32_t t0, uint32_t t1) const {
     std::vector<int> out;
     for (const CineThread& th : threads)
         for (const CineCommand& c : th.commands)
-            if (c.name == "Save" && c.stampMs > t0 && c.stampMs <= t1) out.push_back((int)c.num("^ID^CheckPoint", -1));
+            if (c.name == "Save" && c.stampMs >= t0 && c.stampMs < t1) out.push_back((int)c.num("^ID^CheckPoint", -1));
     return out;
 }
 
@@ -238,7 +238,7 @@ float Cinematic::damageBetween(uint32_t t0, uint32_t t1) const {
     for (const CineThread& th : threads) {
         if (th.type != 3) continue;
         for (const CineCommand& c : th.commands)
-            if (c.name == "GetDamage" && c.stampMs > t0 && c.stampMs <= t1) total += c.num("DamageValue", 0);
+            if (c.name == "GetDamage" && c.stampMs >= t0 && c.stampMs < t1) total += c.num("DamageValue", 0);
     }
     return total;
 }
@@ -247,7 +247,7 @@ std::vector<int> Cinematic::killsBetween(uint32_t t0, uint32_t t1) const {
     std::vector<int> out;
     for (const CineThread& th : threads)
         for (const CineCommand& c : th.commands)
-            if (c.name == "KillObject" && c.stampMs > t0 && c.stampMs <= t1) out.push_back(th.objectId);
+            if (c.name == "KillObject" && c.stampMs >= t0 && c.stampMs < t1) out.push_back(th.objectId);
     return out;
 }
 
@@ -255,7 +255,7 @@ std::vector<int> Cinematic::showHealthBetween(uint32_t t0, uint32_t t1) const {
     std::vector<int> out;
     for (const CineThread& th : threads)
         for (const CineCommand& c : th.commands)
-            if (c.name == "ShowHealth" && c.stampMs > t0 && c.stampMs <= t1) {
+            if (c.name == "ShowHealth" && c.stampMs >= t0 && c.stampMs < t1) {
                 int id = (int)c.num("ObjectID", -1);
                 out.push_back(id >= 0 ? id : th.objectId);
             }
@@ -265,7 +265,7 @@ std::vector<int> Cinematic::showHealthBetween(uint32_t t0, uint32_t t1) const {
 bool Cinematic::levelEndBetween(uint32_t t0, uint32_t t1) const {
     for (const CineThread& th : threads)
         for (const CineCommand& c : th.commands)
-            if ((c.name == "LevelEnd" || c.name == "GameEnd") && c.stampMs > t0 && c.stampMs <= t1) return true;
+            if ((c.name == "LevelEnd" || c.name == "GameEnd") && c.stampMs >= t0 && c.stampMs < t1) return true;
     return false;
 }
 
@@ -273,7 +273,7 @@ std::vector<std::string> Cinematic::unlocksBetween(uint32_t t0, uint32_t t1) con
     std::vector<std::string> out;
     for (const CineThread& th : threads)
         for (const CineCommand& c : th.commands)
-            if (c.name == "Unlock" && c.stampMs > t0 && c.stampMs <= t1) out.push_back(c.str("$SkillID"));
+            if (c.name == "Unlock" && c.stampMs >= t0 && c.stampMs < t1) out.push_back(c.str("$SkillID"));
     return out;
 }
 
@@ -296,7 +296,7 @@ std::vector<Cinematic::Shake> Cinematic::shakesBetween(uint32_t t0, uint32_t t1)
     std::vector<Shake> out;
     for (const CineThread& th : threads)
         for (const CineCommand& c : th.commands)
-            if (c.name == "ShakeCamera" && c.stampMs > t0 && c.stampMs <= t1)
+            if (c.name == "ShakeCamera" && c.stampMs >= t0 && c.stampMs < t1)
                 out.push_back({ c.num("MaxOff", 0), (int)c.num("ShakeFrame", 0), c.num("XRate", 1), c.num("YRate", 1), c.num("ZRate", 1) });
     return out;
 }
@@ -539,7 +539,7 @@ std::vector<std::string> Cinematic::soundsBetween(uint32_t t0, uint32_t t1) cons
     std::vector<std::string> out;
     for (const CineThread& th : threads)
         for (const CineCommand& c : th.commands)
-            if (c.name == "SoundControl" && c.stampMs > t0 && c.stampMs <= t1 &&
+            if (c.name == "SoundControl" && c.stampMs >= t0 && c.stampMs < t1 &&
                 (c.flag("Play2D") || c.flag("Play3D")) && !c.flag("Stop"))
                 out.push_back(c.str("$VoxSounds"));
     return out;

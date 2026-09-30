@@ -80,8 +80,8 @@ int main() {
     ck(c.playerPoseAt(500, p, yaw) && std::fabs(p.x - 50.0f) < 1e-3f, "pose interpolates between keyframes", std::to_string(p.x));
     ck(c.playerPoseAt(5000, p, yaw) && p.x == 100.0f, "past the last key holds the last pose");
     ck(c.playerAnimAt(10) == "idle", "SetAnim read with its $Anim string");
-    auto snd = c.soundsBetween(500, 1000);
-    ck(snd.size() == 1 && snd[0] == "SFX_X" && c.soundsBetween(0, 500).empty(), "sounds reported once, in their window");
+    auto snd = c.soundsBetween(500, 1001);
+    ck(snd.size() == 1 && snd[0] == "SFX_X" && c.soundsBetween(0, 1000).empty(), "sounds reported once, in their [t0, t1) window");
     CineCamera cc;
     ck(!c.cameraAt(100, cc) && c.cameraAt(600, cc) && cc.distance == 640 && cc.target.z == 3, "camera in effect after its stamp");
     ck(c.aiDisabledAt(400).size() == 1 && c.aiDisabledAt(900).empty(), "AI disabled between DisableAI and EnableAI");
@@ -101,33 +101,34 @@ int main() {
        "ShowMessage is on screen from its stamp");
     ck(!c.messageAt(500, m), "and gone after its timer");
     ck(c.messages().size() == 1, "messages() lists every ShowMessage");
+    ck(c.soundsBetween(0, 1).empty() && c.startsBetween(0, 1).empty(), "a window starting at 0 sees stamp-0 commands (none here)");
     // control flow
     auto conds = c.conditions();
     ck(conds.size() == 3 && conds[0].kind == Cinematic::Condition::OBJECT_DESTROYED && conds[0].id == 1009 &&
        conds[1].kind == Cinematic::Condition::ENEMY_DEAD && conds[1].id == 1139 &&
        conds[2].kind == Cinematic::Condition::HEALTH_AT_MOST && conds[2].id == 20055 && conds[2].value == 66.0f,
        "If* gates read as typed conditions");
-    auto starts = c.startsBetween(999, 1000);
-    ck(starts.size() == 1 && starts[0] == 1212 && c.startsBetween(0, 999).empty(), "StartCinematic hands over at its stamp");
-    auto tog = c.triggerTogglesBetween(0, 300);
+    auto starts = c.startsBetween(1000, 1001);
+    ck(starts.size() == 1 && starts[0] == 1212 && c.startsBetween(0, 1000).empty(), "StartCinematic hands over at its stamp");
+    auto tog = c.triggerTogglesBetween(0, 301);
     ck(tog.size() == 2 && tog[0].first == 1046 && !tog[0].second && tog[1].first == 1002 && tog[1].second, "trigger toggles carry id and state");
-    auto cam = c.cameraAreaTogglesBetween(0, 300);
+    auto cam = c.cameraAreaTogglesBetween(0, 301);
     ck(cam.size() == 1 && cam[0].first == 166 && cam[0].second, "EnableCameraArea toggle");
-    auto saves = c.savesBetween(0, 300);
+    auto saves = c.savesBetween(0, 301);
     ck(saves.size() == 1 && saves[0] == 30027, "Save names its CheckPoint id");
-    ck(c.damageBetween(500, 600) == 200.0f && c.damageBetween(0, 500) == 0.0f, "GetDamage sums on the player thread");
-    auto kills = c.killsBetween(0, 500);
+    ck(c.damageBetween(500, 601) == 200.0f && c.damageBetween(0, 600) == 0.0f, "GetDamage sums on the player thread");
+    auto kills = c.killsBetween(0, 501);
     ck(kills.size() == 1 && kills[0] == 400, "KillObject reports the thread's object");
-    auto hp = c.showHealthBetween(0, 500);
+    auto hp = c.showHealthBetween(0, 501);
     ck(hp.size() == 1 && hp[0] == 400, "ShowHealth reports the enemy id");
-    ck(c.levelEndBetween(999, 1000) && !c.levelEndBetween(0, 999), "LevelEnd in its window");
-    auto un = c.unlocksBetween(999, 1000);
+    ck(c.levelEndBetween(1000, 1001) && !c.levelEndBetween(0, 1000), "LevelEnd in its window");
+    auto un = c.unlocksBetween(1000, 1001);
     ck(un.size() == 1 && un[0] == "1 sense", "Unlock carries its skill id");
     Cinematic::Interface ui0 = c.interfaceAt(0), ui1 = c.interfaceAt(300);
     ck(ui0.set && !ui0.control && ui0.black && ui0.skip, "InterfaceControl at 0: no control, black, skip");
     ck(ui1.control && !ui1.black && !ui1.skip, "a later InterfaceControl replaces it");
     ck(!Cinematic().interfaceAt(0).set && Cinematic().interfaceAt(0).skip, "defaults when a script never sets it");
-    auto sh = c.shakesBetween(0, 300);
+    auto sh = c.shakesBetween(0, 301);
     ck(sh.size() == 1 && sh[0].maxOff == 20.0f && sh[0].frames == 20, "ShakeCamera amplitude and frames");
     Cinematic::Tutorial tu;
     ck(!c.tutorialAt(100, tu) && c.tutorialAt(300, tu) && tu.contentId == "STR_JUMP" && tu.timerMs == 3000 && !tu.blackScreen,

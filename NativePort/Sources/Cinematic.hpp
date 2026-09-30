@@ -63,7 +63,10 @@ struct Cinematic {
     std::string playerAnimAt(uint32_t t) const;
     // Camera thread: the ChangeCamera in effect at t.
     bool cameraAt(uint32_t t, CineCamera& out) const;
-    // Every SoundControl with Play2D/Play3D in (t0, t1], as Vox event names.
+    // Every SoundControl with Play2D/Play3D in [t0, t1), as Vox event names.
+    // All "Between" windows are half-open from t0 so a command at stamp 0
+    // fires on the first tick (until Milestone 22 they were (t0, t1] and every
+    // stamp-0 SoundControl, StartCinematic and EnableCameraArea was skipped).
     std::vector<std::string> soundsBetween(uint32_t t0, uint32_t t1) const;
     // Object threads whose AI is disabled at t (by thread name).
     std::vector<std::string> aiDisabledAt(uint32_t t) const;
@@ -107,14 +110,14 @@ struct Cinematic {
     // a health percentage. The caller evaluates them against its world.
     struct Condition { enum Kind { OBJECT_DESTROYED, ENEMY_DEAD, HEALTH_AT_MOST } kind; int id; float value; };
     std::vector<Condition> conditions() const;
-    // StartCinematic in (t0, t1]: Cinematic node ids to hand over to.
+    // StartCinematic in [t0, t1): Cinematic node ids to hand over to.
     std::vector<int> startsBetween(uint32_t t0, uint32_t t1) const;
-    // EnableTrigger / DisableTrigger in (t0, t1]: (trigger id, enabled).
+    // EnableTrigger / DisableTrigger in [t0, t1): (trigger id, enabled).
     std::vector<std::pair<int, bool>> triggerTogglesBetween(uint32_t t0, uint32_t t1) const;
-    // EnableCameraArea in (t0, t1]: (camera area id, enabled).
+    // EnableCameraArea in [t0, t1): (camera area id, enabled).
     std::vector<std::pair<int, bool>> cameraAreaTogglesBetween(uint32_t t0, uint32_t t1) const;
 
-    // World effects in (t0, t1]:
+    // World effects in [t0, t1):
     std::vector<int> savesBetween(uint32_t t0, uint32_t t1) const;        // Save: CheckPoint ids
     float damageBetween(uint32_t t0, uint32_t t1) const;                  // GetDamage on the player thread, summed
     std::vector<int> killsBetween(uint32_t t0, uint32_t t1) const;        // KillObject: the thread's object id
@@ -128,7 +131,7 @@ struct Cinematic {
     // never sets it: control off, not black, skip on (a cut scene).
     struct Interface { bool control = false; bool black = false; bool skip = true; bool arrow = false; bool attribution = false; bool set = false; };
     Interface interfaceAt(uint32_t t) const;
-    // ShakeCamera in (t0, t1]: amplitude in units and length in frames.
+    // ShakeCamera in [t0, t1): amplitude in units and length in frames.
     struct Shake { float maxOff; int frames; float xRate, yRate, zRate; };
     std::vector<Shake> shakesBetween(uint32_t t0, uint32_t t1) const;
     // Tutorial card in effect at t: string ids from Tutorial.map, blackScreen,
