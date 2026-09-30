@@ -44,6 +44,8 @@ $CXX -std=c++17 -O2 -I "$SRC" -o /tmp/stm_actor "$SRC/BDAEModel.cpp" "$SRC/Level
 echo "== cinematic actors ==";  /tmp/stm_actor "$ASSETS"
 $CXX -std=c++17 -O2 -I "$SRC" -o /tmp/stm_dialogue "$SRC/BDAEModel.cpp" "$SRC/Level.cpp" "$SRC/Cinematic.cpp" "$SRC/GameFlow.cpp" dialogue_test.cpp
 echo "== dialogue ==";           /tmp/stm_dialogue "$ASSETS"
+$CXX -std=c++17 -O2 -I "$SRC" -o /tmp/stm_flow "$SRC/BDAEModel.cpp" "$SRC/Level.cpp" "$SRC/Cinematic.cpp" "$SRC/GameFlow.cpp" "$SRC/Script.cpp" script_flow_test.cpp
+echo "== script flow ==";        /tmp/stm_flow "$ASSETS"
 $CXX -std=c++17 -O2 -I "$SRC" -o /tmp/stm_strings "$SRC/BDAEModel.cpp" "$SRC/Level.cpp" "$SRC/GameFlow.cpp" strings_test.cpp
 echo "== strings ==";            /tmp/stm_strings "$ASSETS"
 $CXX -std=c++17 -O2 -I "$SRC" -o /tmp/stm_audit "$SRC/BDAEModel.cpp" "$SRC/Level.cpp" "$SRC/UIKitData.cpp" "$SRC/Script.cpp" "$SRC/Cinematic.cpp" asset_audit_test.cpp
