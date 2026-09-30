@@ -44,3 +44,13 @@ Cinematic actors and subtitles (Milestone 21)
 - [ ] Level 1 end: Sandman, the car and Rhino animate; the level completes when the script ends
 - [ ] Level 2 end: Rhino's own animation replaces the boss; two cops and the car arrive
 - [ ] No T-posed characters standing in the world before their scene
+
+Script graph (Milestone 22)
+- [ ] Tapping the chapter card starts the prologue at once (no walking into a volume first)
+- [ ] After the prologue, the tutorial cards appear in sequence (PUNCH, WEB, JUMP prompts) and a Timer -1 card waits for a tap; SKIP is hidden while a card waits
+- [ ] The three-thug beat: the next door/beat does not open until the thugs are down (gated script), then it fires
+- [ ] A scripted save: dying after a Save beat respawns at that checkpoint, not the previous one
+- [ ] Scripts that fade to black do so (BlackEnable) and scripts that forbid skipping ignore taps
+- [ ] Camera shake on the crash beat
+- [ ] Level 1 end: after the boss script the epilogue (girl, camera flash) plays, then the score screen
+- [ ] Console shows `script arms trigger` lines as beats chain; no `unknown trigger` lines

@@ -25,11 +25,15 @@ containers (`*.pack`, `*.ipa`, `*.apk`, media) are gitignored.
   fires: player keyframes, sounds, authored camera tracks (PlayDAECamera)
   with chained scripts and level ends, cinematic actors playing their
   world-space animation files, subtitles from the level's string table
+- The authored script graph: triggers with their Enabled/AutoDisabled flags
+  and enter/exit/while links, If* gates (kill-all beats), StartCinematic
+  hand-overs, scripted saves, tutorial cards, the level's own start and
+  epilogue scripts (`Tools/script_graph.py` draws it)
 - Audio driven by the original slot tables (enemy matrix and hero slots),
   and cinematics that move the enemies they name
 - Authentic HUD from `interface.tga` (every sprite rectangle verified
   visually - `docs/`) and all UI text in the original outlined font
-- 22 host-side suites and 7 asset-free unit suites validate parsers and
+- 23 host-side suites and 7 asset-free unit suites validate parsers and
   gameplay logic against the real game data before anything ships to a
   device (`hosttests/`)
 

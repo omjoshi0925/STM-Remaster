@@ -25,3 +25,7 @@
 - Basic thread: the .cff thread with object -1 carrying PlayDAECamera, ShowMessage and level-wide SetVisible
 - PlayDAECamera: the command that names a script's camera track, the script to chain into and whether it ends the level
 - offset table: the xlsStrings .data layout (u32 count, u32 offsets, UTF-16 strings)
+- script graph: the Cinematic nodes and the trigger links, StartCinematic hand-overs, Next chains and QTE branches between them
+- gate: an If* command (IfEnemyDead, IfObjectDestroyed, IfHealthTo) a script waits on before running
+- hand-over: StartCinematic ending one script and starting another at its last stamp
+- epilogue: the SpiderMan node's ^EndGame^Cinematic, played after the level-end script

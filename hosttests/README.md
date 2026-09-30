@@ -28,7 +28,7 @@ Asset-free unit suites (`hosttests/run_unit_tests.sh`, also run by CI):
 | suite | verifies |
 |---|---|
 | math_unit | matrix identity, translation, composition, rotation |
-| trigger_unit | volume containment, fire-once, completion rule |
+| trigger_unit | volume containment, enter/while edges, Enabled/AutoDisabled, EnableTrigger by id, consume |
 | config_parser_unit | odd-length strings do not drop stat records |
 | gameflow_unit | checkpoints, comic nodes, death, completion |
 | wav_unit | PCM16 WAV passthrough, duration |
@@ -42,3 +42,4 @@ Asset-free unit suites (`hosttests/run_unit_tests.sh`, also run by CI):
 | cine_actor_unit | actor clock, enemy mesh table, scene-id lookups, file-variant resolution |
 | dialogue_test | every ShowMessage resolves to text in the level's string table; faces and timers |
 | strings_test | xlsStrings offset-table decode (591 strings), chapter names, per-level subtitle tables |
+| script_flow_test | the authored script graph: trigger links, StartCinematic hand-overs, arming, saves, gates and tutorial cards resolve; start and epilogue scripts from the SpiderMan node |
