@@ -375,8 +375,11 @@ bool LevelRoom::load(const std::string& assetRoot, const std::string& levelDir,
         else if (n.gameType == "RestorePoint")
             restorePoints.push_back(Vec3{ n.absolute.m[12], n.absolute.m[13], n.absolute.m[14] });
         else if (n.gameType == "CheckPoint" || n.gameType == "WayPoint" ||
-                 n.gameType == "WebGrabPoint" || n.gameType == "Comic")
+                 n.gameType == "WebGrabPoint" || n.gameType == "Comic") {
             markers.push_back({ n.gameType, Vec3{ n.absolute.m[12], n.absolute.m[13], n.absolute.m[14] } });
+            if (n.gameType == "CheckPoint" && n.id >= 0)
+                checkpointById[n.id] = Vec3{ n.absolute.m[12], n.absolute.m[13], n.absolute.m[14] };
+        }
     }
     if (visualBatches.empty() && collision.empty()) { err = "level " + name + " produced no geometry"; return false; }
     return true;
@@ -462,7 +465,13 @@ int LevelRoom::enemyIndexById(int nodeId) const {
 
 int LevelRoom::cameraVolumeAt(const Vec3& p) const {
     for (size_t i = 0; i < cameraVolumes.size(); ++i)
-        if (cameraVolumes[i].contains(p)) return (int)i;
+        if (cameraVolumes[i].enabled && cameraVolumes[i].contains(p)) return (int)i;
+    return -1;
+}
+
+int LevelRoom::cameraVolumeIndexById(int id) const {
+    if (id < 0) return -1;
+    for (size_t i = 0; i < cameraVolumes.size(); ++i) if (cameraVolumes[i].id == id) return (int)i;
     return -1;
 }
 

@@ -121,6 +121,7 @@ struct LevelRoom {
     struct CameraVolume {
         std::string name;
         int id = -1;
+        bool enabled = true;          // scripts toggle areas with EnableCameraArea
         Vec3 center{}, half{};
         std::vector<Vec3> controlPoints;
         bool contains(const Vec3& p) const {
@@ -138,12 +139,14 @@ struct LevelRoom {
     const PropSpawn* propById(int nodeId) const;
     int enemyIndexById(int nodeId) const;   // -1 when no spawn has that id
 
-    // Index of the camera volume containing p, or -1.
+    // Index of the enabled camera volume containing p, or -1.
     int cameraVolumeAt(const Vec3& p) const;
     void resolveScripting();   // called by loadFullLevel once all rooms are in
 
     std::map<std::string, std::string> cinematicByTag;   // tag -> .cff path
     std::map<int, std::string> cinematicById;            // Cinematic node id -> .cff path (QTE branches)
+    std::map<int, Vec3> checkpointById;                  // CheckPoint node id -> position (scripts' Save)
+    int cameraVolumeIndexById(int id) const;             // -1 when unknown
     std::map<int, std::vector<Vec3>> camPointsByOwner;   // CameraArea id -> points
     std::vector<std::pair<std::string, Vec3>> markers;   // checkpoints, waypoints, web points
 
