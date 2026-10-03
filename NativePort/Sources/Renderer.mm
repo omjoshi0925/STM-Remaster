@@ -793,7 +793,7 @@ fragment half4 frag(Out i                   [[stage_in]],
         }
         if (_bossIndex >= 0 && (size_t)_bossIndex == fi && !fe.alive()) _bossIndex = -1;
     }
-    for (bdae::EnemyActor &f : _foes)
+    for (bdae::EnemyActor &f : _foes) {   // braces: both statements below belong to the loop
         if (playing && f.state == bdae::EnemyActor::ATTACK && f.stateStartMs == nowMs) {
             // the original table says what each archetype's attack sounds like
             size_t fi2 = (size_t)(&f - &_foes[0]);
@@ -809,6 +809,7 @@ fragment half4 frag(Out i                   [[stage_in]],
             std::string hu = _slotTablesOk ? _heroSounds.event("k_mc_sfx_hurt", _vox, _sfxVariant++) : "SFX_HURT_1";
             [_audio playEvent:hu.c_str()];
         }
+    }
     if (playing) {
         // the authored script graph: enabled trigger volumes report enter/exit
         // edges and While* frames; each names a Cinematic node whose script runs
