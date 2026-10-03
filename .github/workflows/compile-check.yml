@@ -4,23 +4,38 @@ jobs:
   syntax:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Engine C++ compiles (no assets needed)
         run: |
+          fail=0
           for f in NativePort/Sources/*.cpp; do
-            clang++ -std=c++17 -fsyntax-only -I NativePort/Sources "$f"
+            if ! out=$(clang++ -std=c++17 -fsyntax-only -ferror-limit=0 -I NativePort/Sources "$f" 2>&1); then
+              fail=1
+              echo "$out" | grep -E ': error:' | while IFS= read -r l; do echo "::error::${l:0:400}"; done
+            fi
           done
-      - name: Objective-C++ renderer compiles against the iOS SDK
+          exit $fail
+      - name: Objective-C++ sources compile against the iOS SDK
         run: |
           SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+          echo "::notice::$(xcodebuild -version | head -1), SDK $SDK"
+          fail=0
           for f in NativePort/Sources/*.mm; do
-            clang++ -std=c++17 -fobjc-arc -fsyntax-only -isysroot "$SDK" -target arm64-apple-ios16.0 -I NativePort/Sources "$f"
+            # gnu++17 + modules + ARC: the flags the CMake-generated Xcode project uses
+            if ! out=$(clang++ -x objective-c++ -std=gnu++17 -fobjc-arc -fmodules -fsyntax-only -ferror-limit=0 \
+                         -isysroot "$SDK" -target arm64-apple-ios16.0 -I NativePort/Sources "$f" 2>&1); then
+              fail=1
+              echo "$out" | grep -E ': error:' | while IFS= read -r l; do echo "::error::${l:0:400}"; done
+            fi
           done
+          exit $fail
       - name: Host suites compile
         run: |
           cd hosttests
+          fail=0
           for t in *.cpp; do
-            clang++ -std=c++17 -fsyntax-only -I ../NativePort/Sources "$t"
+            clang++ -std=c++17 -fsyntax-only -I ../NativePort/Sources "$t" || fail=1
           done
+          exit $fail
       - name: Asset-free unit suites
         run: hosttests/run_unit_tests.sh
