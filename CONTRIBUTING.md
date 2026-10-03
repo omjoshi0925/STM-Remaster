@@ -9,3 +9,14 @@ intermediate exactly once, and the check below would have caught it.
 
     # for each staged commit, from a clean tree
     g++ -std=c++17 -fsyntax-only -I NativePort/Sources NativePort/Sources/*.cpp
+
+## CI must be green
+A red compile-check or ios-build run is a broken build, not noise. Both
+workflows ran red for two weeks (2026-09-19 to Milestone 22.1) while the
+Linux-side checks passed, because those checks never compiled Objective-C++:
+a g++ syntax pass over the `.cpp` files plus `Tools/mm_lint.py` cannot see an
+undeclared local or a misplaced brace inside `Renderer.mm`. Before pushing a
+change that touches a `.mm` file, run `make check` on the Mac (it compiles
+every `.mm` against the iOS SDK with the Xcode flags), and look at the
+Actions tab after pushing; errors appear as annotations with file and line
+(docs/CI.md).
