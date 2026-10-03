@@ -2,9 +2,13 @@ name: ios-build
 # The exact build the device uses: generate the Xcode project with CMake and
 # build the app for iphoneos without signing. No game assets are needed.
 on: [push, pull_request]
+concurrency:
+  group: ios-build-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   build:
     runs-on: macos-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
       - name: Generate the Xcode project
