@@ -744,3 +744,31 @@ the authored LevelEnd; shake scale is a guess.
 ### NOT YET IMPLEMENTED
 Wall traversal and web swing, original boss phases, menus, saves and ranks,
 destruction states, room streaming, 3D audio panning, levels 3 to 12.
+
+## Milestone 22.1 — CI green, device build fixed (2026-10-02)
+
+### IMPLEMENTED
+The compile-check workflow had failed on every push since 2026-09-19, and
+the failures were real compile errors in Renderer.mm. Fixed: the enemy update
+loop had lost its braces when the attack-sound block was added, leaving the
+hit handling outside the loop (the device build has been broken since
+Milestone 15); Milestone 22's startCinematic used levelDir without declaring
+it; `typeof` became `__typeof__`; the unit suites include `<unistd.h>` for
+mkdtemp/mkstemp. CI now compiles every `.mm` with the Xcode project's flags,
+reports each error as a file:line annotation, runs `Tools/mm_lint.py`, and a
+new ios-build workflow runs the real CMake + xcodebuild device build.
+`make check` matches CI and prints every error; `make lint` added;
+checkout@v5 clears the Node 20 warning; dependabot keeps actions current.
+
+### VERIFIED LOCALLY
+Both workflows green on a temporary branch of the repo (compile-check and the
+unsigned iphoneos xcodebuild, Xcode 26.6 / iOS 26.5 SDK) at the exact final
+commit. Host suites and unit suites pass. The temporary ci-probe branch can be
+deleted.
+
+### REQUIRES DEVICE VALIDATION
+Everything since Milestone 15 has now actually been built for the first
+time: run it on the phone. Milestones 15 to 22 were verified only on the host.
+
+### KNOWN LIMITATIONS
+CI does not run the data-driven host suites (no game assets on the runner).
