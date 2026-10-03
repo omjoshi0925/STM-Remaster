@@ -34,7 +34,10 @@ jobs:
           cd hosttests
           fail=0
           for t in *.cpp; do
-            clang++ -std=c++17 -fsyntax-only -I ../NativePort/Sources "$t" || fail=1
+            if ! out=$(clang++ -std=c++17 -fsyntax-only -ferror-limit=0 -I ../NativePort/Sources "$t" 2>&1); then
+              fail=1
+              echo "$out" | grep -E ': error:' | while IFS= read -r l; do echo "::error::hosttests/${l:0:400}"; done
+            fi
           done
           exit $fail
       - name: Asset-free unit suites
