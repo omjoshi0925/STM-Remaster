@@ -2,10 +2,13 @@ ASSETS ?= $(HOME)/Downloads/SpiderMan_Native_ARM64_Port_Workbench/Assets
 WB     ?= $(HOME)/Downloads/SpiderMan_Native_ARM64_Port_Workbench
 TEAM   ?= BHV8AWKA75
 
-.PHONY: check test unit verify regen build sync
+.PHONY: check lint test unit verify regen build sync
 
-check:        ## compile check like CI
+check: lint   ## compile check like CI (every file, every error)
 	Tools/check_staged.sh
+
+lint:         ## static Renderer.mm checks, no SDK needed
+	python3 Tools/mm_lint.py
 
 unit:         ## asset-free suites
 	hosttests/run_unit_tests.sh
