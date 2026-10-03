@@ -3,6 +3,8 @@
 #include "unit_common.hpp"
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
+#include <unistd.h>   // mkdtemp/mkstemp: POSIX, not reliably pulled in by <cstdlib> on macOS
 #include <string>
 using namespace bdae;
 static std::string xml() {

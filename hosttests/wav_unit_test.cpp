@@ -2,6 +2,8 @@
 #include "Audio.hpp"
 #include "unit_common.hpp"
 #include <cstdio>
+#include <cstdlib>
+#include <unistd.h>   // mkdtemp/mkstemp: POSIX, not reliably pulled in by <cstdlib> on macOS
 #include <cstring>
 #include <vector>
 using namespace bdae;

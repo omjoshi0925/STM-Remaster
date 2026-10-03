@@ -3,6 +3,8 @@
 #include "Combat.hpp"
 #include "unit_common.hpp"
 #include <cstdio>
+#include <cstdlib>
+#include <unistd.h>   // mkdtemp/mkstemp: POSIX, not reliably pulled in by <cstdlib> on macOS
 #include <cstring>
 #include <vector>
 using namespace bdae;
@@ -15,7 +17,7 @@ int main() {
     str(b, "even_clip_name_x");     // 16 chars, lowercase (not a record start)
     str(b, "RHINO_T");              // odd again
     for (int i = 0; i < 10; ++i) num(b, i == 0 ? 100u : 2u);
-    char dir[] = "/tmp/stmcfgXXXXXX"; mkdtemp(dir);
+    char dir[] = "/tmp/stmcfgXXXXXX"; if (!mkdtemp(dir)) { std::printf("mkdtemp failed\n"); return 1; }
     std::string d = dir;
     FILE* f = fopen((d + "/EnemysAttributeConfigs.bin").c_str(), "wb"); fwrite(b.data(), 1, b.size(), f); fclose(f);
     std::string e;
