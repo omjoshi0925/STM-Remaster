@@ -1,5 +1,8 @@
 # STM-Remaster
 
+[![compile-check](https://github.com/omjoshi0925/STM-Remaster/actions/workflows/compile-check.yml/badge.svg)](https://github.com/omjoshi0925/STM-Remaster/actions/workflows/compile-check.yml)
+[![ios-build](https://github.com/omjoshi0925/STM-Remaster/actions/workflows/ios-build.yml/badge.svg)](https://github.com/omjoshi0925/STM-Remaster/actions/workflows/ios-build.yml)
+
 A from-scratch native ARM64 rebuild of **Spider-Man: Total Mayhem** (Gameloft,
 2010, iOS) as a modern Metal app for current iPhones, driven entirely by the
 original game's own data files.
