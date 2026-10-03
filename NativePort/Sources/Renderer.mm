@@ -1591,6 +1591,7 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
 - (BOOL)startCinematic:(const std::string &)relPath tag:(const std::string &)tag now:(uint32_t)nowMs {
     const bdae::Cinematic *loaded = [self scriptAt:relPath];
     if (!loaded) return NO;
+    const std::string levelDir = kLevelDirs[_flow.levelIndex % kLevelCount];
     bdae::Cinematic next = *loaded;   // zero-length control beats run too (Milestone 22)
     // actors of the script being replaced (a QTE branch mid-script) settle on their last frame
     for (auto &ap : _cineActors) if (ap->live) { ap->actor.poseAt(ap->actor.startMs + ap->actor.durationMs()); ap->live = false; }
