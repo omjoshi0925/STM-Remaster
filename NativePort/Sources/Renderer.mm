@@ -1722,11 +1722,11 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
     _videoLayer.backgroundColor = UIColor.blackColor.CGColor;
     [_mtkView.layer addSublayer:_videoLayer];
     [_mtkView bringSubviewToFront:_skipLabel];
-    __weak typeof(self) weakSelf = self;
+    __weak __typeof__(self) weakSelf = self;
     [NSNotificationCenter.defaultCenter addObserverForName:AVPlayerItemDidPlayToEndTimeNotification
                                                     object:item queue:NSOperationQueue.mainQueue
                                                 usingBlock:^(NSNotification *n) {
-        typeof(self) sself = weakSelf;
+        __typeof__(self) sself = weakSelf;
         if (sself) [sself playVideoAtIndex:sself->_videoIndex + 1];
     }];
     [_video play];
