@@ -1,0 +1,8 @@
+version: 2
+updates:
+  # keep actions/checkout and friends current (the Node 20 runtime deprecation
+  # warning on every run came from an old checkout major)
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
