@@ -21,3 +21,4 @@
 - M21: cinematic actors (CI_* objects and vehicles play their world-space files), PlayDAECamera camera tracks with chaining and authored level end, ShowMessage subtitles, the real xlsStrings decode
 - M22: the authored script graph - trigger flags and links, If* gates, StartCinematic hand-overs, Enable/DisableTrigger, Save, GetDamage, KillObject, ShowHealth, LevelEnd, InterfaceControl, ShakeCamera, Tutorial cards, the SpiderMan node's start and epilogue scripts, half-open windows
 - M22.1: CI fixed - four real compile errors (one breaking the device build since M15), error annotations, a device-build workflow, checks that match Xcode
+- M23: boss phase scripts, the script clock (slow motion, tutorial pause), queued trigger beats, authored-end-only completion

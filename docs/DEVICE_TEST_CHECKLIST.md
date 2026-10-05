@@ -54,3 +54,10 @@ Script graph (Milestone 22)
 - [ ] Camera shake on the crash beat
 - [ ] Level 1 end: after the boss script the epilogue (girl, camera flash) plays, then the score screen
 - [ ] Console shows `script arms trigger` lines as beats chain; no `unknown trigger` lines
+
+Boss phases, slow motion, level ends (Milestone 23)
+- [ ] Level 2 Rhino: at about two thirds health a phase script plays, again at one third
+- [ ] Slow-motion beats (the crash, boss knock-downs) visibly slow the scene and its sounds, then return to normal speed
+- [ ] A tutorial card that waits for a tap freezes the scene behind it; tapping resumes from the same moment
+- [ ] Walking into a second trigger during a scene: that beat plays right after the scene, not never
+- [ ] Touring every checkpoint does not end Level 1 early; the level ends after the boss script and the epilogue

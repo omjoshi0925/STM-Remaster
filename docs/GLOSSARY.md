@@ -29,3 +29,6 @@
 - gate: an If* command (IfEnemyDead, IfObjectDestroyed, IfHealthTo) a script waits on before running
 - hand-over: StartCinematic ending one script and starting another at its last stamp
 - epilogue: the SpiderMan node's ^EndGame^Cinematic, played after the level-end script
+- script clock: the running script's own time (_cineT), slowed by SetSlowMotion and paused by a waiting tutorial card
+- boss phase: a boss node's ^ToStage2^/^ToStage3^ script, run once at two thirds / one third health
+- queued beat: an enter-triggered script that fired during another script and plays after it
