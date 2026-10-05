@@ -448,6 +448,8 @@ fragment half4 frag(Out i                   [[stage_in]],
     std::map<std::string, bdae::Cinematic> _cineCache;   // parsed scripts by level-relative path
     std::set<std::string> _cineBad;                      // paths that failed to load (reported once)
     std::vector<uint32_t> _triggerCooldownMs;            // per trigger: no re-run of a While* script before this
+    struct QueuedBeat { int index; std::string path, tag; };
+    std::vector<QueuedBeat> _beatQueue;                  // enter beats that fired while a script ran (Milestone 23)
     int _cinePendingStart;         // StartCinematic seen this tick: hand over after the tick, or -1
     BOOL _epiloguePlayed;          // the SpiderMan node's ^EndGame^Cinematic has run
     BOOL _cineCompleteOnEnd;       // the running script is the epilogue: complete the level when it ends
@@ -842,7 +844,17 @@ fragment half4 frag(Out i                   [[stage_in]],
                 NSLog(@"[TotalMayhem] trigger '%s'%s%s", se.tag.c_str(), se.cinematic.empty() ? "" : " -> ", se.cinematic.c_str());
                 if (se.tag == "sense" || se.tag == "3thugs") [_audio playEvent:"SFX_SPIDER_SENSE_IN"];
             }
-            if (se.cinematic.empty() || _cineActive) continue;
+            if (se.cinematic.empty()) continue;
+            if (_cineActive) {
+                // an enter edge during a running script is kept and played after it;
+                // While* edges repeat on their own and need no queue
+                if (se.kind == bdae::ScriptEvent::ENTER) {
+                    bool dup = false;
+                    for (const QueuedBeat &qb : _beatQueue) if (qb.index == se.index) dup = true;
+                    if (!dup && _beatQueue.size() < 8) _beatQueue.push_back({se.index, se.cinematic, se.tag});
+                }
+                continue;
+            }
             if (se.index >= 0 && (size_t)se.index < _triggerCooldownMs.size() && nowMs < _triggerCooldownMs[(size_t)se.index]) continue;
             const bdae::Cinematic *sc = [self scriptAt:se.cinematic];
             if (!sc || ![self conditionsHold:*sc]) continue;      // gated: the trigger stays armed
@@ -1702,6 +1714,19 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
             [self startCinematic:it->second tag:("next_" + std::to_string(next)) now:nowMs]) return;
         NSLog(@"[TotalMayhem] chained cinematic %d has no script", next);
     }
+    // beats whose trigger fired while this script ran play now, oldest first;
+    // one whose gate does not hold yet is dropped (its trigger stays armed)
+    while (!_beatQueue.empty()) {
+        QueuedBeat qb = _beatQueue.front();
+        _beatQueue.erase(_beatQueue.begin());
+        const bdae::Cinematic *sc = [self scriptAt:qb.path];
+        if (!sc || ![self conditionsHold:*sc]) continue;
+        if ([self startCinematic:qb.path tag:qb.tag now:nowMs]) {
+            _script.consume(qb.index);
+            NSLog(@"[TotalMayhem] queued beat '%s' plays", qb.tag.c_str());
+            return;
+        }
+    }
     _flow.startPlay(nowMs);
 }
 
@@ -2321,7 +2346,7 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
     _cineActive = NO;
     _foeSounds.clear(); _foeBarked.clear(); _foeStat.clear(); _foeNodeId.clear(); _foeStages.clear(); _bossStat.clear(); _bossIndex = -1;
     _cineActors.clear(); _actorObjects.clear(); _actorVBs = nil; _actorIBs = nil; _actorTex = nil; _actorCounts.clear(); _actorBatchMesh.clear();
-    _cineCache.clear(); _cineBad.clear(); _triggerCooldownMs.clear(); _cinePendingStart = -1; _epiloguePlayed = NO; _cineCompleteOnEnd = NO;
+    _cineCache.clear(); _cineBad.clear(); _triggerCooldownMs.clear(); _beatQueue.clear(); _cinePendingStart = -1; _epiloguePlayed = NO; _cineCompleteOnEnd = NO;
     _blackAlpha = 0; _shakeUntilMs = 0; _shakeAmp = 0; _shakeLenMs = 0; _tutorialWaiting = NO; _tutorialDismissedStamp = 0xFFFFFFFFu;
     _winPlayed = NO; _musicAction = NO; _musicSwitchMs = 0; _scoreMusicMs = 0;
     _npcBones = nil;
