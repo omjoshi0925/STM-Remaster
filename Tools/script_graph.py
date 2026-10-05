@@ -85,6 +85,9 @@ def main():
             if i in cine:
                 _, r = summary(path(i)); nxt |= (r - reached)
         reached |= nxt; frontier = nxt
+    # scripts that end the level (LevelEnd / GameEnd, or a level-end camera)
+    enders = [i for i in sorted(cine) if re.search(r'LevelEnd|GameEnd|LEVEL END', summary(path(i))[0])]
+    print('\nlevel ends: ' + (', '.join('%d %s%s' % (i, cine[i].get('Name', ''), '' if i in reached else ' (unreached)') for i in enders) or 'none (checkpoint completion)'))
     orphans = sorted(i for i in cine if i not in reached)
     print('\n%d Cinematic nodes, %d reached from the spawn node, boss stages, triggers, StartCinematic, Next and QTE branches; %d unreached:' % (len(cine), len(reached & set(cine)), len(orphans)))
     for i in orphans: print('   %d %s %s' % (i, cine[i].get('Name', ''), summary(path(i))[0]))
