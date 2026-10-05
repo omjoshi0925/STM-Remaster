@@ -15,5 +15,12 @@ int main() {
     f.onDeath(3000); ck(f.phase == GameFlow::DEAD && f.deaths == 1, "death phase counts the death");
     f.respawn(3500); ck(f.phase == GameFlow::PLAYING, "respawn resumes play");
     ck(f.updatePlaying({1000, 0, 0}, 4000) && f.phase == GameFlow::COMPLETE, "last checkpoint completes the level");
+    // a level with an authored end: checkpoints mark progress, the script ends it
+    GameFlow g; g.beginLevel(L, 0, 1000); g.authoredEnd = true; g.startPlay(1500);
+    g.updatePlaying({100, 0, 0}, 2000);
+    ck(!g.updatePlaying({1000, 0, 0}, 3000) && g.phase == GameFlow::PLAYING && g.visitedCount() == 2,
+       "with an authored end, visiting every checkpoint does not complete");
+    g.completeLevel(4000);
+    ck(g.phase == GameFlow::COMPLETE && g.phaseStartMs == 4000, "completeLevel ends it");
     UNIT_END("GAMEFLOW UNIT");
 }

@@ -124,6 +124,7 @@ int main() {
     auto hp = c.showHealthBetween(0, 501);
     ck(hp.size() == 1 && hp[0] == 400, "ShowHealth reports the enemy id");
     ck(c.levelEndBetween(1000, 1001) && !c.levelEndBetween(0, 1000), "LevelEnd in its window");
+    ck(c.endsLevel() && !Cinematic().endsLevel(), "endsLevel sees the LevelEnd; an empty script does not end a level");
     auto un = c.unlocksBetween(1000, 1001);
     ck(un.size() == 1 && un[0] == "1 sense", "Unlock carries its skill id");
     Cinematic::Interface ui0 = c.interfaceAt(0), ui1 = c.interfaceAt(300);
