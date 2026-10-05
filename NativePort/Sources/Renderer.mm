@@ -2390,6 +2390,16 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
     if (_levelReady) _script.bind(*_room);
     if (_levelReady)
         _flow.beginLevel(*_room, idx % kLevelCount, (uint32_t)(CACurrentMediaTime() * 1000.0));
+    // does the level author its own end? (Level 1: the end camera; Level 2:
+    // LevelEnd in its end script) Then only that script completes it.
+    _flow.authoredEnd = false;
+    if (_levelReady) {
+        for (const auto &kv : _room->cinematicById) {
+            const bdae::Cinematic *sc = [self scriptAt:kv.second];
+            if (sc && sc->endsLevel()) { _flow.authoredEnd = true; break; }
+        }
+        NSLog(@"[TotalMayhem] level end: %s", _flow.authoredEnd ? "authored (a script ends it)" : "every checkpoint visited");
+    }
     NSLog(@"[TotalMayhem] level %d (%s): %zu enemies, %zu checkpoints", idx,
           kLevelDirs[idx % kLevelCount], _foes.size(), _flow.checkpointsAll.size());
 }
