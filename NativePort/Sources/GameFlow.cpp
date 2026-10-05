@@ -117,7 +117,7 @@ bool GameFlow::updatePlaying(const Vec3& hero, uint32_t) {
         }
         if (!visited[i]) all = false;
     }
-    if (all && phase == PLAYING) { phase = COMPLETE; return true; }
+    if (all && phase == PLAYING && !authoredEnd) { phase = COMPLETE; return true; }
     return false;
 }
 

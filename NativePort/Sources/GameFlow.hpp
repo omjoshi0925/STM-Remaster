@@ -56,6 +56,10 @@ struct GameFlow {
     void startPlay(uint32_t nowMs) { phase = PLAYING; phaseStartMs = nowMs; }
     // The authored level end: a PlayDAECamera flagged "level end" has finished.
     void completeLevel(uint32_t nowMs) { phase = COMPLETE; phaseStartMs = nowMs; }
+    // Set when the level authors its own end (a level-end script): visiting
+    // every checkpoint then only marks progress and no longer completes the
+    // level (Milestone 23; both shipped levels author an end).
+    bool authoredEnd = false;
     void showTitle(uint32_t nowMs) { phase = TITLE; phaseStartMs = nowMs; }
     // Marks newly reached checkpoints, moves the respawn point; returns true
     // if this update completed the level.
