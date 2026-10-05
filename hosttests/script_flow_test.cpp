@@ -69,7 +69,19 @@ int main(int argc, char** argv) {
             ck(idx >= 0 && !L.triggers[(size_t)idx].enabled && L.triggers[(size_t)idx].whileInCinematic == 1264, "Trigger_Lv1_Start is a disabled WhileIn trigger, not the start");
         } else {
             ck(L.startCinematic == -1 && L.endGameCinematic == -1, "Level 2 names no start or epilogue script on its SpiderMan node");
+            // boss phases: the Rhino spawn names its two stage scripts and both resolve
+            int s2 = -1, s3 = -1;
+            for (auto& en : L.enemies) if (en.nodeId == 20055) { s2 = en.stage2Cinematic; s3 = en.stage3Cinematic; }
+            ck(s2 == 20065 && s3 == 20087 && L.cinematicById.count(s2) && L.cinematicById.count(s3),
+               "Level 2 Rhino names its ^ToStage2^/^ToStage3^ scripts and both resolve", std::to_string(s2) + "/" + std::to_string(s3));
+            Cinematic st; std::vector<int> hand;
+            if (L.cinematicById.count(20065) && st.load(root + "/levelnew_02/" + L.cinematicById[20065], e)) hand = st.startsBetween(0, st.durationMs + 1);
+            ck(hand.size() == 1 && L.cinematicById.count(hand[0]), "the stage 2 script hands over to its fight beat", hand.empty() ? "" : std::to_string(hand[0]));
         }
+        // the level authors its own end somewhere in its scripts
+        int ending = 0;
+        for (auto& kv : L.cinematicById) { Cinematic c; if (c.load(root + "/" + lv + "/" + kv.second, e) && c.endsLevel()) ++ending; }
+        ck(ending >= 1, (std::string(lv) + " authors its own end (a script with LevelEnd or a level-end camera)").c_str(), std::to_string(ending));
     }
     char b[200];
     snprintf(b, sizeof b, "%d scripts (%d zero-length), %d StartCinematic, %d trigger toggles (%d arm a trigger that starts disabled), %d saves, %d gates in %d scripts (%d on enemies), %d tutorials, %d camera toggles",
