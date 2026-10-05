@@ -269,6 +269,12 @@ bool Cinematic::levelEndBetween(uint32_t t0, uint32_t t1) const {
     return false;
 }
 
+bool Cinematic::endsLevel() const {
+    CameraRequest cr;
+    if (cameraRequest(cr) && cr.levelEnd) return true;
+    return levelEndBetween(0, durationMs + 1);
+}
+
 std::vector<std::string> Cinematic::unlocksBetween(uint32_t t0, uint32_t t1) const {
     std::vector<std::string> out;
     for (const CineThread& th : threads)

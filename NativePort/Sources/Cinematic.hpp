@@ -123,6 +123,9 @@ struct Cinematic {
     std::vector<int> killsBetween(uint32_t t0, uint32_t t1) const;        // KillObject: the thread's object id
     std::vector<int> showHealthBetween(uint32_t t0, uint32_t t1) const;   // ShowHealth: enemy ids whose bar appears
     bool levelEndBetween(uint32_t t0, uint32_t t1) const;                 // LevelEnd or GameEnd
+    // Whether running this script ends the level at all: a LevelEnd/GameEnd
+    // command anywhere, or a PlayDAECamera flagged "level end".
+    bool endsLevel() const;
     std::vector<std::string> unlocksBetween(uint32_t t0, uint32_t t1) const;   // Unlock $SkillID ("1 sense")
 
     // Presentation:
