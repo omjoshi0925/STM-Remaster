@@ -15,18 +15,15 @@ Ordered by leverage; each item lists where its data/reference lives.
    `WebGrabPoint` nodes, Player state machine symbols.
 5. **Camera areas** - `CameraArea` nodes (authored camera volumes; the
    current orbit camera is not original).
-6. **Script commands still unhonoured** - after Milestone 22 (the authored
-   trigger graph, gates, hand-overs, Save, GetDamage, KillObject, ShowHealth,
-   LevelEnd, InterfaceControl, ShakeCamera, Tutorial, the epilogue) what
-   remains: boss phase scripts (^ToStage2/3^Cinematic on Boss nodes, gated
-   IfHealthTo 66/33 - small, next), SetSlowMotion (parsed), StartProgress /
-   StopProgress and StopAction (boss runs between WayPoints), StartSlide
-   (rope slides), Transport, Physics, Throwing, PlayEffect. Reference:
-   `CCinematicThread` in ENGINE_MAP.md; `Tools/script_graph.py` shows where
-   each sits in the level.
 6. **ControlEnable scripts during play** - tutorial hints and short beats
-   author ControlEnable=true; running them without pausing play needs the
-   script clock decoupled from the CINEMATIC phase.
+   author ControlEnable=true. The script now has its own clock (Milestone
+   23), so the remaining step is running such a script while the phase stays
+   PLAYING: next.
+6. **Boss runs and throws** - StartProgress / StopProgress and StopAction
+   (Rhino's charge between WayPoints 20071 and 20080), Throwing (EnmeyID +
+   ObjectID: Rhino throws a prop), StartSlide (rope slides between WayPoint
+   pairs). Then Transport, Physics, PlayEffect. Reference: `CCinematicThread`
+   in ENGINE_MAP.md; `Tools/script_graph.py` shows where each sits.
 7. **Subtitle portraits** - $MessageFace 3/4/5/9 (girl, cop, Sandman...) need
    their portrait art; interface_2.tga and the GS screens are where to look.
 7. **Menus** - `mainmenu.tga` + GS_* screen definitions + `interface_2.tga`.
