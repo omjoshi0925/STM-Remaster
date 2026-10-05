@@ -168,8 +168,9 @@ original's 30 fps). `Tutorial` (21 uses): `Content$Tutorial_STRINGID` and
 carries glyph codes `^J` jump, `^K` attack, `^L` web, `^D` stick, `^S`
 spider-sense, `^I` interact, `^T` web icon and colour codes `^0`..`^9`;
 `Cinematic::expandTutorialMarkup` spells the buttons out.
-`SetSlowMotion Enable Denominator TimeOn TimeOnToEnd` (35 uses) is parsed
-(`slowMotionAt`) but not applied.
+`SetSlowMotion Enable Denominator TimeOn TimeOnToEnd` (35 uses) slows the
+script clock by Denominator for TimeOn ms (Milestone 23; TimeOnToEnd, the
+ease back, is not modelled).
 
 **The epilogue.** When a level-end script finishes, the SpiderMan node's
 `^EndGame^Cinematic` (Level 1: 1267, 55 s) plays before the score screen.
@@ -179,3 +180,25 @@ no attributes), Physics, Throwing (EnmeyID, ObjectID), StopAction,
 StartProgress / StopProgress (boss run between WayPoints), StartSlide
 (WayPoint pair), StartTimer, Restore, MustBeVisibleRoom, ShowStream,
 PlayEffect, and the boss nodes' ^ToStage2/3^ links.
+
+## The script clock (Milestone 23)
+A running script no longer reads real time. Its clock `_cineT` advances each
+frame by the real frame time, divided by the SetSlowMotion denominator in
+effect, and stands still while a Tutorial card with Timer -1 waits for a tap.
+Every query (sounds, poses, camera track, subtitles, tutorial cards,
+InterfaceControl, the hero's and actors' animation files) reads that clock,
+so slow motion and pauses apply to all of them together. QTE windows stay on
+real time, as a player's reaction window should.
+
+## When scripts collide (Milestone 23)
+An enter edge that fires while another script runs is queued (up to 8) and
+played when the running one ends, oldest first, after any StartCinematic or
+^ID^Cinematic^Next hand-over; a queued beat whose gate does not hold yet is
+dropped and its trigger stays armed. While* edges repeat on their own and are
+not queued.
+
+## How a level ends (Milestone 23)
+`Cinematic::endsLevel()` is true for a script with LevelEnd/GameEnd or a
+level-end PlayDAECamera. If any of a level's scripts ends the level, only
+that completes it; touring every checkpoint just records progress. Both
+shipped levels author their end (Level 1: 1238; Level 2: 20077, Cinematic_BossDead).

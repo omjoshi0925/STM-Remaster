@@ -41,7 +41,11 @@ Level 2 has -1 for both; its intro is a WhileIn trigger at the spawn.
 `Boss_*` spawns name their phase scripts: `^ToStage2^Cinematic` (Level 2
 Rhino: 20065, gated IfHealthTo 66 %) and `^ToStage3^Cinematic` (20087, 33 %).
 Level 1 authors the same beats as WhileOut triggers `Trigger_60%` /
-`Trigger_33%`. Not yet honoured by the runtime.
+`Trigger_33%` with IfHealthTo gates. Honoured since Milestone 23: the runtime
+starts each stage script once when the boss's health first falls to two
+thirds / one third (`BossStageTracker`), only between scripts so a knock-down
+beat is not cut off. The stage scripts are zero-length hand-overs
+(20065 -> StartCinematic 20062).
 
 ## Cinematic
 `Cinematic_<name>` nodes carry `!ScriptFile`, e.g.
