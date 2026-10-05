@@ -35,5 +35,14 @@ int main() {
     ck(tr.update({1000, 0, 0}).empty() && tr.enabledCount() == 2, "consume switches an AutoDisabled trigger off");
     tr.consume(2);
     ck(tr.enabledCount() == 2, "consume leaves a non-AutoDisabled trigger armed");
+    // boss phases: two thirds and one third, each once, none lost to a big hit
+    BossStageTracker bs; bs.bind(20065, 20087);
+    ck(bs.update(1.0f) == -1 && bs.update(0.7f) == -1, "no stage above two thirds");
+    ck(bs.update(0.66f) == 20065 && bs.update(0.5f) == -1, "stage 2 fires once at two thirds");
+    ck(bs.update(0.33f) == 20087 && bs.update(0.1f) == -1 && bs.done(), "stage 3 fires once at one third");
+    BossStageTracker big; big.bind(20065, 20087);
+    ck(big.update(0.1f) == 20065 && big.update(0.1f) == 20087 && big.update(0.0f) == -1, "a hit past both reports stage 2 then stage 3");
+    BossStageTracker none; none.bind(-1, -1);
+    ck(none.update(0.0f) == -1 && none.done(), "a boss without stage links never fires");
     UNIT_END("TRIGGER UNIT");
 }
