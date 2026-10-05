@@ -28,9 +28,9 @@ Asset-free unit suites (`hosttests/run_unit_tests.sh`, also run by CI):
 | suite | verifies |
 |---|---|
 | math_unit | matrix identity, translation, composition, rotation |
-| trigger_unit | volume containment, enter/while edges, Enabled/AutoDisabled, EnableTrigger by id, consume |
+| trigger_unit | volume containment, enter/while edges, Enabled/AutoDisabled, EnableTrigger by id, consume, boss phase thresholds |
 | config_parser_unit | odd-length strings do not drop stat records |
-| gameflow_unit | checkpoints, comic nodes, death, completion |
+| gameflow_unit | checkpoints, comic nodes, death, completion, authored-end levels |
 | wav_unit | PCM16 WAV passthrough, duration |
 
 | cinematic_test | every .cff parses, sample values, sounds exist, trigger links |

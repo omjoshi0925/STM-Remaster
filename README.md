@@ -31,7 +31,8 @@ containers (`*.pack`, `*.ipa`, `*.apk`, media) are gitignored.
 - The authored script graph: triggers with their Enabled/AutoDisabled flags
   and enter/exit/while links, If* gates (kill-all beats), StartCinematic
   hand-overs, scripted saves, tutorial cards, the level's own start and
-  epilogue scripts (`Tools/script_graph.py` draws it)
+  epilogue scripts (`Tools/script_graph.py` draws it); boss phase scripts,
+  slow motion, and levels that end only through their authored end script
 - Audio driven by the original slot tables (enemy matrix and hero slots),
   and cinematics that move the enemies they name
 - Authentic HUD from `interface.tga` (every sprite rectangle verified
