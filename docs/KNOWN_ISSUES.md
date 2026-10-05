@@ -4,10 +4,11 @@ Open
 - Movement reported as not working on one device build; not yet reproduced, needs a description of what dragging does and the on-screen fps value. Note: the device build was broken from Milestone 15 to 22.1 (see Fixed), so any device run in that window was an older binary.
 - A handful of Level 1 texture names do not ship under those names in the iOS packs (Car_01, 42_mall_glass, 05_atlas_A); those surfaces fall back to baked vertex colour.
 - Trigger and camera-area extents are not stored on the nodes; volumes use conservative boxes and control-point bounds. With the authored links now driving the scripts, a box that is too small or too large shows up as a beat that fires early, late or not at all: report the trigger name from the console line.
-- An enter edge that happens while another script is running is dropped (the original may queue it); While* triggers re-report, enter-only ones do not until re-entry.
-- SetSlowMotion is parsed but not applied; Transport, Physics, Throwing, StopAction, StartProgress/StopProgress, StartSlide, StartTimer, Restore, PlayEffect and the boss nodes' ^ToStage2/3^ phase scripts are not honoured.
+- Enter beats that fire during a script are queued (max 8) and a queued beat whose gate does not hold yet is dropped; if the original instead waited for the gate, such a beat now needs the trigger re-entered.
+- Transport, Physics, Throwing, StopAction, StartProgress/StopProgress, StartSlide, StartTimer, Restore and PlayEffect are not honoured. SetSlowMotion slows only the running script (not free play) and ignores TimeOnToEnd.
+- Boss phase scripts fire at exactly two thirds and one third health; the original thresholds come from the script names and Level 1's IfHealthTo 66/33 gates, not from a decoded boss table.
 - Scripts with ControlEnable=true still pause play (the letterbox is dropped, control is not returned); tutorial hints during play therefore freeze the action for their timer.
-- ShakeCamera amplitude is a guessed scale (MaxOff x 6 world units); the checkpoint-visited completion rule still exists beside the authored LevelEnd and can complete a level first.
+- ShakeCamera amplitude is a guessed scale (MaxOff x 6 world units).
 - Comic pages for levels after the first use estimated start pages.
 - Audio event choices per moment are ours; the slot linkage in BehaviorSoundMapList.bin and MC_SOUND.bin is undecoded.
 - Cinematic playback assumes ChangeCamera dir points from camera to target; if scenes look reversed, negate it.
@@ -18,6 +19,8 @@ Open
 - Hostage props still draw in bind pose; they are not AnimatedObjects and no script animates them.
 
 Fixed
+- Checkpoint touring could complete a level before its authored end; levels with a level-end script now complete only through it (Milestone 23).
+- Script time ran on while a tutorial card waited for a tap, so the scene and its sounds played on behind the card (Milestone 23).
 - iOS build broken since Milestone 15: the enemy update loop lost its braces (hit handling outside the loop); M22 dropped startCinematic's levelDir; GNU typeof; unit suites missing <unistd.h> on macOS. CI caught all of it from its first run but reported nothing readable; fixed in 22.1 with error annotations and a real device-build workflow.
 - Triggers were paired with scripts by name and all treated as enabled; the authored links (^OutToIn^ etc.), Enabled and AutoDisabled flags now drive them, and the level start comes from the SpiderMan node (Milestone 22).
 - Commands at stamp 0 (StartCinematic, EnableCameraArea, many SoundControl) never fired: windows were (t0, t1] (Milestone 22).
