@@ -51,4 +51,23 @@ struct TriggerRuntime {
     bool levelComplete(bool bossDown) const { return completionTriggered() && bossDown; }
 };
 
+// Boss phases (Milestone 23): a boss node's ^ToStage2^ script runs once when
+// its health first falls to two thirds or below, ^ToStage3^ at one third. The
+// scripts are named "if_66%" / "if_33%" and Level 1 authors the same beats as
+// IfHealthTo 66 / 33 gates, which fixes the thresholds.
+struct BossStageTracker {
+    int stage2 = -1, stage3 = -1;      // Cinematic node ids, -1 = none
+    bool fired2 = false, fired3 = false;
+    void bind(int s2, int s3) { stage2 = s2; stage3 = s3; fired2 = fired3 = false; }
+    // The stage script due at this health fraction (0..1), or -1. Each fires
+    // once; a big hit that skips past both reports stage 2 first, stage 3 on
+    // the next call, so neither is lost.
+    int update(float healthFraction) {
+        if (stage2 >= 0 && !fired2 && healthFraction <= 2.0f / 3.0f) { fired2 = true; return stage2; }
+        if (stage3 >= 0 && !fired3 && healthFraction <= 1.0f / 3.0f) { fired3 = true; return stage3; }
+        return -1;
+    }
+    bool done() const { return (stage2 < 0 || fired2) && (stage3 < 0 || fired3); }
+};
+
 } // namespace bdae
