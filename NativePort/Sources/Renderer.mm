@@ -416,6 +416,7 @@ fragment half4 frag(Out i                   [[stage_in]],
     std::vector<bool> _foeBarked;                // aggro voice line played once
     std::vector<std::string> _foeStat;           // stats row name per foe
     std::vector<int> _foeNodeId;                 // scene node id per foe (cinematic object threads)
+    std::vector<bdae::BossStageTracker> _foeStages;   // per foe: boss phase scripts (Milestone 23)
     bdae::VoxTable _vox;
     bdae::BehaviorSoundMap _behaviorMap;
     bdae::HeroSoundMap _heroSounds;
@@ -814,6 +815,21 @@ fragment half4 frag(Out i                   [[stage_in]],
             _heroHP = fmaxf(0.0f, _heroHP - f.stats.damage);
             std::string hu = _slotTablesOk ? _heroSounds.event("k_mc_sfx_hurt", _vox, _sfxVariant++) : "SFX_HURT_1";
             [_audio playEvent:hu.c_str()];
+        }
+    }
+    // boss phases: a boss node's ^ToStage2^ / ^ToStage3^ script runs once when its
+    // health first reaches two thirds / one third (only between scripts, so a
+    // knock-down beat is never cut off by the next one)
+    if (playing && !_cineActive && _room) {
+        for (size_t fi = 0; fi < _foes.size() && fi < _foeStages.size(); ++fi) {
+            bdae::BossStageTracker &bst = _foeStages[fi];
+            const bdae::EnemyActor &bf = _foes[fi];
+            if (bst.done() || bf.stats.hp <= 0) continue;
+            int sid = bst.update(bf.alive() ? bf.hp / bf.stats.hp : 0.0f);
+            if (sid < 0) continue;
+            auto it = _room->cinematicById.find(sid);
+            NSLog(@"[TotalMayhem] boss %d reaches a phase -> cinematic %d", fi < _foeNodeId.size() ? _foeNodeId[fi] : -1, sid);
+            if (it != _room->cinematicById.end() && [self startCinematic:it->second tag:("boss_stage_" + std::to_string(sid)) now:nowMs]) break;
         }
     }
     if (playing) {
@@ -2075,6 +2091,7 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
         _foeSounds.push_back(_slotTablesOk ? _vox.soundsFor(statName, _behaviorMap) : _vox.soundsFor(statName));
         _foeStat.push_back(statName);
         _foeNodeId.push_back(en.nodeId);
+        _foeStages.emplace_back(); _foeStages.back().bind(en.stage2Cinematic, en.stage3Cinematic);
         _foeBarked.push_back(false);
         _bossStat.push_back(statName.rfind("SANDMAN", 0) == 0 || statName.rfind("RHINO", 0) == 0 ? statName : std::string());
         _foes.emplace_back();
@@ -2302,7 +2319,7 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
     _npcModel.clear(); _npcIndexCount.clear(); _npcIdle.clear();
     _npcAnchor.clear(); _npcs.clear(); _foes.clear();
     _cineActive = NO;
-    _foeSounds.clear(); _foeBarked.clear(); _foeStat.clear(); _foeNodeId.clear(); _bossStat.clear(); _bossIndex = -1;
+    _foeSounds.clear(); _foeBarked.clear(); _foeStat.clear(); _foeNodeId.clear(); _foeStages.clear(); _bossStat.clear(); _bossIndex = -1;
     _cineActors.clear(); _actorObjects.clear(); _actorVBs = nil; _actorIBs = nil; _actorTex = nil; _actorCounts.clear(); _actorBatchMesh.clear();
     _cineCache.clear(); _cineBad.clear(); _triggerCooldownMs.clear(); _cinePendingStart = -1; _epiloguePlayed = NO; _cineCompleteOnEnd = NO;
     _blackAlpha = 0; _shakeUntilMs = 0; _shakeAmp = 0; _shakeLenMs = 0; _tutorialWaiting = NO; _tutorialDismissedStamp = 0xFFFFFFFFu;
