@@ -327,7 +327,11 @@ bool LevelRoom::load(const std::string& assetRoot, const std::string& levelDir,
         {
             float yw = std::atan2(2.0f * (n.rotation.w * n.rotation.z + n.rotation.x * n.rotation.y),
                                   1.0f - 2.0f * (n.rotation.y * n.rotation.y + n.rotation.z * n.rotation.z));
-            enemies.push_back({ n.gameType, Vec3{ n.absolute.m[12], n.absolute.m[13], n.absolute.m[14] }, yw, n.id });
+            EnemySpawn es{ n.gameType, Vec3{ n.absolute.m[12], n.absolute.m[13], n.absolute.m[14] }, yw, n.id };
+            auto s2 = n.attrs.find("^ToStage2^Cinematic"), s3 = n.attrs.find("^ToStage3^Cinematic");
+            if (s2 != n.attrs.end()) es.stage2Cinematic = std::atoi(s2->second.c_str());
+            if (s3 != n.attrs.end()) es.stage3Cinematic = std::atoi(s3->second.c_str());
+            enemies.push_back(es);
         }
         else if (n.gameType == "Trigger" || n.gameType == "TriggerRestore") {
             TriggerVolume t;

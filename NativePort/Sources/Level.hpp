@@ -78,7 +78,13 @@ struct LevelRoom {
     bool  hasSpawn = false;
     Vec3  spawn;
     float spawnYaw = 0;
-    struct EnemySpawn { std::string type; Vec3 pos; float yaw = 0; int nodeId = -1; };
+    struct EnemySpawn {
+        std::string type; Vec3 pos; float yaw = 0; int nodeId = -1;
+        // Boss nodes name their phase scripts (Milestone 23): ^ToStage2^Cinematic
+        // and ^ToStage3^Cinematic (Level 2 Rhino: 20065 at two thirds health,
+        // 20087 at one third). -1 when none.
+        int stage2Cinematic = -1, stage3Cinematic = -1;
+    };
     std::vector<EnemySpawn> enemies;
 
     // World props placed by the original scenes (lampposts, cars, hostages...).
