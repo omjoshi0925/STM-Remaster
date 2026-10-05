@@ -424,12 +424,18 @@ fragment half4 frag(Out i                   [[stage_in]],
     bdae::Cinematic _cine;
     BOOL _cineActive;
     uint32_t _cineStartMs, _cineLastMs;
+    // The script's own clock (Milestone 23): advanced each frame from real
+    // time so it can pause (a tutorial card waiting for a tap) and slow down
+    // (SetSlowMotion). Every query on the running script uses _cineT.
+    uint32_t _cineT;               // script time, ms
+    double _cineTf;                // the same with the fractional part
+    uint32_t _cineRealMs;          // real time of the last clock step
     std::string _cineName;
     const bdae::Clip *_cineClip;
     bdae::CameraTrack _cineCam;
     std::unique_ptr<Model> _cineHero;      // hero mesh + the script's PlayDAEAnim file
     std::string _cineHeroFile;
-    uint32_t _cineHeroStartMs;
+    uint32_t _cineHeroStartMs;     // script time of the hero's PlayDAEAnim
     BOOL _cineHeroActive;
     Vec3 _cineHeroAnchor;                  // feet of the world-space animation this frame
     BOOL _cineCamActive;
@@ -832,7 +838,10 @@ fragment half4 frag(Out i                   [[stage_in]],
     }
     if (_cineActive) {
         // run the script: the player thread poses Spider-Man, sound commands fire
-        uint32_t t = nowMs - _cineStartMs;
+        _cineTf += (double)(nowMs - _cineRealMs);
+        _cineRealMs = nowMs;
+        _cineT = (uint32_t)_cineTf;
+        uint32_t t = _cineT;
         for (const std::string &s : _cine.soundsBetween(_cineLastMs, t))
             if (!s.empty()) [_audio playEvent:s.c_str()];
         [self applyScript:_cine from:_cineLastMs to:t now:nowMs];   // the world-changing commands in this window
@@ -861,7 +870,7 @@ fragment half4 frag(Out i                   [[stage_in]],
                     std::string p = bdae::resolveCaseInsensitive(_assetRootStr + "/" + kLevelDirs[_flow.levelIndex % kLevelCount] + "/" + f);
                     auto m = std::make_unique<Model>();
                     if (m->loadMesh(_assetRootStr + "/entities/meshes_bin/spiderman_mesh.bdae", he) && m->loadAnimation(p, he) && !m->clips.empty()) {
-                        _cineHero = std::move(m); _cineHeroActive = YES; _cineHeroStartMs = _cineStartMs + da.stampMs;
+                        _cineHero = std::move(m); _cineHeroActive = YES; _cineHeroStartMs = da.stampMs;
                         NSLog(@"[TotalMayhem] cinematic hero animation %s (%.1f s)", f.c_str(),
                               (_cineHero->clips[0].endMs - _cineHero->clips[0].startMs) / 1000.0);
                     } else NSLog(@"[TotalMayhem] cinematic hero animation %s: %s", f.c_str(), he.c_str());
@@ -907,7 +916,7 @@ fragment half4 frag(Out i                   [[stage_in]],
         uint32_t endMs = _cine.durationMs;
         if (_cineCamActive) endMs = MAX(endMs, _cineCamStartMs + _cineCam.durationMs);
         if (_cineHeroActive && _cineHero && !_cineHero->clips.empty())
-            endMs = MAX(endMs, (_cineHeroStartMs - _cineStartMs) + (_cineHero->clips[0].endMs - _cineHero->clips[0].startMs));
+            endMs = MAX(endMs, _cineHeroStartMs + (_cineHero->clips[0].endMs - _cineHero->clips[0].startMs));
         if (!_tutorialWaiting && (_cinePendingStart >= 0 || t > endMs + 400)) [self finishCinematic:nowMs skipped:NO];
     }
     if (_flow.phase == bdae::GameFlow::COMPLETE && _scoreMusicMs && nowMs >= _scoreMusicMs) {
@@ -1003,7 +1012,7 @@ fragment half4 frag(Out i                   [[stage_in]],
         if (_cineActive && _cineHeroActive && _cineHero) {
             const Clip &c0 = _cineHero->clips[0];
             uint32_t len = c0.endMs > c0.startMs ? c0.endMs - c0.startMs : 1;
-            uint32_t local = nowMs >= _cineHeroStartMs ? nowMs - _cineHeroStartMs : 0;
+            uint32_t local = _cineT >= _cineHeroStartMs ? _cineT - _cineHeroStartMs : 0;
             // The per-cinematic files are authored in world space (spiderman_lv1_start
             // swings Bip01 from (15422, -12504, 1970) down to the spawn), so the pose
             // is drawn with an identity model matrix and the camera follows its feet.
@@ -1067,7 +1076,7 @@ fragment half4 frag(Out i                   [[stage_in]],
         p.y - cosf(_camYaw) * _camDist * cosf(_camPitch),
         p.z + 95.0f + sinf(_camPitch) * _camDist};
     if (_cineActive) {
-        uint32_t ct = (uint32_t)(now * 1000.0) - _cineStartMs;
+        uint32_t ct = _cineT;
         Vec3 ce3, ctg;
         if (_cineCamActive && ct >= _cineCamStartMs && _cineCam.sample(ct - _cineCamStartMs, ce3, ctg)) {
             // an authored camera animation (PlayDAEAnim on a camera file) wins outright
@@ -1262,7 +1271,7 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
 
     // ---- flow overlays (video/title/death/complete) and the comic page
     bdae::Cinematic::Interface cineUi;
-    if (_flow.phase == bdae::GameFlow::CINEMATIC && _cineActive) cineUi = _cine.interfaceAt(nowMs - _cineStartMs);
+    if (_flow.phase == bdae::GameFlow::CINEMATIC && _cineActive) cineUi = _cine.interfaceAt(_cineT);
     // InterfaceControl BlackEnable fades the screen to black and back (250 ms)
     {
         float want = (_flow.phase == bdae::GameFlow::CINEMATIC && _cineActive && cineUi.black) ? 1.0f : 0.0f;
@@ -1296,7 +1305,7 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
         // table, in the original font inside the lower bar; Spider-Man's lines
         // (face 1) carry his HUD portrait
         bdae::Cinematic::Message msg;
-        if (_cineActive && _fontAtlas && _cine.messageAt(nowMs - _cineStartMs, msg)) {
+        if (_cineActive && _fontAtlas && _cine.messageAt(_cineT, msg)) {
             std::string line = _strings.get(msg.stringId, "");
             if (!line.empty()) {
                 const float th = 26 * sc, maxW = W * 0.82f;
@@ -1310,7 +1319,7 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
         // Tutorial card: the prompt from Tutorial.map in the original font on a
         // dark panel (full black when the script asks); Timer -1 waits for a tap
         bdae::Cinematic::Tutorial tu;
-        if (_cineActive && _fontAtlas && _cine.tutorialAt(nowMs - _cineStartMs, tu) && tu.stampMs != _tutorialDismissedStamp) {
+        if (_cineActive && _fontAtlas && _cine.tutorialAt(_cineT, tu) && tu.stampMs != _tutorialDismissedStamp) {
             std::string body = bdae::Cinematic::expandTutorialMarkup(_strings.get(tu.contentId, tu.contentId));
             std::string title = tu.titleId.empty() ? std::string() : bdae::Cinematic::expandTutorialMarkup(_strings.get(tu.titleId, ""));
             const float th = 30 * sc, maxW = W * 0.66f;
@@ -1597,6 +1606,7 @@ struct SpriteVert { float p[2]; float uv[2]; uint8_t tint[4]; };
     for (auto &ap : _cineActors) if (ap->live) { ap->actor.poseAt(ap->actor.startMs + ap->actor.durationMs()); ap->live = false; }
     _cine = next;
     _cineActive = YES; _cineStartMs = nowMs; _cineLastMs = 0; _cineName = tag;
+    _cineT = 0; _cineTf = 0.0; _cineRealMs = nowMs;
     _cineClip = nullptr; _cineClipName.clear();
     _cineCamActive = NO; _qteOpen = NO; _qteNextIndex = 0; _cineHeroActive = NO; _cineHeroFile.clear();
     _cineHidden.clear(); _tutorialWaiting = NO; _tutorialDismissedStamp = 0xFFFFFFFFu;
@@ -2373,11 +2383,11 @@ static bool WorldToScreen(simd_float4x4 vp, float W, float H, float x, float y, 
             if (_qteOpen) { [self resolveQte:YES now:nowMs]; return; }   // tap inside the window = success
             if (_tutorialWaiting && _cineActive) {                        // tap = dismiss the tutorial card
                 bdae::Cinematic::Tutorial tu;
-                if (_cine.tutorialAt(nowMs - _cineStartMs, tu)) _tutorialDismissedStamp = tu.stampMs;
+                if (_cine.tutorialAt(_cineT, tu)) _tutorialDismissedStamp = tu.stampMs;
                 _tutorialWaiting = NO;
                 return;
             }
-            if (_cineActive && !_cine.interfaceAt(nowMs - _cineStartMs).skip) return;   // the script refuses skipping
+            if (_cineActive && !_cine.interfaceAt(_cineT).skip) return;   // the script refuses skipping
             [self finishCinematic:nowMs skipped:YES];   // otherwise tap = skip the cinematic
             return;
         }
