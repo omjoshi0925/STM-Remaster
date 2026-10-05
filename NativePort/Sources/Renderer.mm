@@ -839,7 +839,12 @@ fragment half4 frag(Out i                   [[stage_in]],
     if (_cineActive) {
         // run the script: the player thread poses Spider-Man, sound commands fire
         // a tutorial card waiting for a tap freezes the script where it stands
-        if (!_tutorialWaiting) _cineTf += (double)(nowMs - _cineRealMs);
+        // SetSlowMotion divides the clock by its Denominator for TimeOn ms (35
+        // uses: the crash, Sandman's arrival, the boss knock-downs)
+        if (!_tutorialWaiting) {
+            float div = _cine.slowMotionAt(_cineT);
+            _cineTf += (double)(nowMs - _cineRealMs) / (double)(div >= 1.0f ? div : 1.0f);
+        }
         _cineRealMs = nowMs;
         _cineT = (uint32_t)_cineTf;
         uint32_t t = _cineT;
