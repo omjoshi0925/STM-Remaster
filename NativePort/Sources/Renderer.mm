@@ -838,7 +838,8 @@ fragment half4 frag(Out i                   [[stage_in]],
     }
     if (_cineActive) {
         // run the script: the player thread poses Spider-Man, sound commands fire
-        _cineTf += (double)(nowMs - _cineRealMs);
+        // a tutorial card waiting for a tap freezes the script where it stands
+        if (!_tutorialWaiting) _cineTf += (double)(nowMs - _cineRealMs);
         _cineRealMs = nowMs;
         _cineT = (uint32_t)_cineTf;
         uint32_t t = _cineT;
