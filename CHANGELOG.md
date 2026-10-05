@@ -772,3 +772,39 @@ time: run it on the phone. Milestones 15 to 22 were verified only on the host.
 
 ### KNOWN LIMITATIONS
 CI does not run the data-driven host suites (no game assets on the runner).
+
+## Milestone 23 — boss phases, the script clock, authored level ends (2026-10-04)
+
+### IMPLEMENTED
+Boss nodes' ^ToStage2^ / ^ToStage3^ phase scripts run once each when the
+boss first falls to two thirds and one third health (Level 2 Rhino: 20065,
+20087), between scripts so a knock-down beat is never cut off. The running
+script has its own clock: SetSlowMotion slows it by its Denominator for
+TimeOn, and a Tutorial card waiting for a tap freezes it, so the scene and
+its sounds no longer play on behind the card. An enter beat that fires while
+another script runs is queued and plays after it instead of being lost.
+A level that authors its own end (both shipped levels do) completes only
+through that script; touring every checkpoint just records progress.
+script_graph.py lists each level's ending scripts.
+
+### VERIFIED LOCALLY
+Host suites (22) and unit suites (7) pass on the extracted packs: the Level 2
+Rhino names 20065/20087 and the stage script hands over to 20062; both levels
+author an end (Level 1: 1238 among 4; Level 2: 20077). Unit coverage for the
+phase thresholds (including a hit past both), authored-end completion and
+endsLevel. compile-check and ios-build green on GitHub Actions at the final
+commit, and every commit's Renderer.mm compiled against the iOS SDK.
+
+### REQUIRES DEVICE VALIDATION
+The Rhino phase beats, how slow motion feels, the tutorial freeze, queued
+beats, and that Level 1 ends after the boss script and epilogue rather than
+early. Still waiting on the first device run since the M22.1 build fix.
+
+### KNOWN LIMITATIONS
+Phase thresholds inferred from script names and Level 1's gates; slow motion
+applies to scripts only; ControlEnable scripts still pause play; boss runs,
+throws, slides, Transport, Physics, PlayEffect not honoured.
+
+### NOT YET IMPLEMENTED
+Wall traversal and web swing, menus, saves and ranks, destruction states,
+room streaming, 3D audio panning, levels 3 to 12.
