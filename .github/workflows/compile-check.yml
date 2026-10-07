@@ -7,7 +7,7 @@ jobs:
   syntax:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Renderer static lint
         run: python3 Tools/mm_lint.py NativePort/Sources/Renderer.mm
       - name: Engine C++ compiles (no assets needed)
